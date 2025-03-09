@@ -23,7 +23,9 @@ import {
   Chip,
   Switch,
   FormControlLabel,
-  Snackbar
+  Snackbar,
+  AppBar,
+  Toolbar
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -32,7 +34,8 @@ import {
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
   Lock as LockIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
@@ -216,6 +219,10 @@ const AdminPortal = () => {
     setSnackbar({ ...snackbar, open: false });
   };
 
+  const handleBack = () => {
+    window.history.back();
+  };
+
   if (!user?.isAdmin) {
     return (
       <Container>
@@ -230,257 +237,395 @@ const AdminPortal = () => {
   }
 
   return (
-    <Container>
-      <Typography variant="h4" sx={{ mt: 4, mb: 2 }}>
-        Admin Portal
-      </Typography>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-      
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {success}
-        </Alert>
-      )}
-
-      <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
-        <Tab label="Users" />
-        <Tab label="Password Entries" />
-        <Tab label="Groups" />
-        <Tab label="Login Logs" />
-      </Tabs>
-
-      <TableContainer component={Paper}>
-        <Table>
-          {activeTab === 0 && (
-            <>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Role</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user._id}>
-                    <TableCell>{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={user.isAdmin ? 'Admin' : 'User'}
-                        color={user.isAdmin ? 'primary' : 'default'}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <IconButton onClick={() => handleEditUser(user)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton onClick={() => {
-                        setSelectedUser(user);
-                        setDialogType('changePassword');
-                        setDialogOpen(true);
-                      }}>
-                        <KeyIcon />
-                      </IconButton>
-                      <IconButton onClick={() => handleDeleteUser(user._id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </>
-          )}
-
-          {activeTab === 1 && (
-            <>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Title</TableCell>
-                  <TableCell>Username</TableCell>
-                  <TableCell>Password</TableCell>
-                  <TableCell>Owner</TableCell>
-                  <TableCell>Group</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {passwordEntries.map((entry) => (
-                  <TableRow key={entry._id}>
-                    <TableCell>{entry.title}</TableCell>
-                    <TableCell>{entry.username}</TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        {showPassword[entry._id] ? entry.password : '••••••••'}
-                        <IconButton
-                          size="small"
-                          onClick={() => setShowPassword(prev => ({
-                            ...prev,
-                            [entry._id]: !prev[entry._id]
-                          }))}
-                        >
-                          {showPassword[entry._id] ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                        </IconButton>
-                      </Box>
-                    </TableCell>
-                    <TableCell>{entry.owner?.name}</TableCell>
-                    <TableCell>{entry.group?.name || '-'}</TableCell>
-                    <TableCell>
-                      <IconButton onClick={() => handleDeletePasswordEntry(entry._id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </>
-          )}
-
-          {activeTab === 2 && (
-            <>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Owner</TableCell>
-                  <TableCell>Members</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {groups.map((group) => (
-                  <TableRow key={group._id}>
-                    <TableCell>{group.name}</TableCell>
-                    <TableCell>{group.owner?.name}</TableCell>
-                    <TableCell>
-                      {group.members.map(member => (
-                        <Chip
-                          key={member.user._id}
-                          label={`${member.user.name} (${member.role})`}
-                          size="small"
-                          sx={{ mr: 0.5, mb: 0.5 }}
-                        />
-                      ))}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton onClick={() => handleDeleteGroup(group._id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </>
-          )}
-
-          {activeTab === 3 && (
-            <>
-              <TableHead>
-                <TableRow>
-                  <TableCell>User</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Timestamp</TableCell>
-                  <TableCell>IP Address</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {loginLogs.map((log) => (
-                  <TableRow key={log._id}>
-                    <TableCell>{log.userName}</TableCell>
-                    <TableCell>{log.userEmail}</TableCell>
-                    <TableCell>
-                      {new Date(log.timestamp).toLocaleString()}
-                    </TableCell>
-                    <TableCell>{log.ipAddress}</TableCell>
-                    <TableCell>
-                      <Typography
-                        color={log.success ? 'success.main' : 'error.main'}
-                      >
-                        {log.success ? 'Success' : 'Failed'}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </>
-          )}
-        </Table>
-      </TableContainer>
-
-      <Dialog open={dialogOpen} onClose={handleCloseDialog}>
-        <DialogTitle>
-          {dialogType === 'editUser' ? 'Edit User' : 'Change Password'}
-        </DialogTitle>
-        <DialogContent>
-          {dialogType === 'editUser' ? (
-            <Box sx={{ pt: 2 }}>
-              <TextField
-                fullWidth
-                label="Name"
-                value={editUserData.name}
-                onChange={(e) => setEditUserData(prev => ({ ...prev, name: e.target.value }))}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                fullWidth
-                label="Email"
-                value={editUserData.email}
-                onChange={(e) => setEditUserData(prev => ({ ...prev, email: e.target.value }))}
-                sx={{ mb: 2 }}
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={editUserData.isAdmin}
-                    onChange={(e) => setEditUserData(prev => ({ ...prev, isAdmin: e.target.checked }))}
-                  />
-                }
-                label="Admin Access"
-              />
-            </Box>
-          ) : (
-            <TextField
-              autoFocus
-              margin="dense"
-              label="New Password"
-              type="password"
-              fullWidth
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button
-            onClick={dialogType === 'editUser' ? handleUpdateUser : handleChangePassword}
-            variant="contained"
+    <>
+      <AppBar position="static" color="transparent" elevation={0}>
+        <Toolbar>
+          <IconButton
+            edge="start"
+            color="inherit"
+            onClick={handleBack}
+            sx={{ mr: 2 }}
           >
-            {dialogType === 'editUser' ? 'Update User' : 'Change Password'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Admin Portal
+          </Typography>
+        </Toolbar>
+      </AppBar>
+      
+      <Container maxWidth="xl">
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          gap: 2,
+          py: 4
+        }}>
+          <Typography 
+            variant="h4" 
+            sx={{ 
+              fontWeight: 'medium',
+              color: 'primary.main',
+              mb: 1
+            }}
+          >
+            Admin Portal
+          </Typography>
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={handleSnackbarClose}
-      >
-        <Alert
-          onClose={handleSnackbarClose}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          {error && (
+            <Alert 
+              severity="error" 
+              variant="outlined"
+              sx={{ 
+                '& .MuiAlert-message': { 
+                  display: 'flex', 
+                  alignItems: 'center' 
+                } 
+              }}
+            >
+              {error}
+            </Alert>
+          )}
+          
+          {success && (
+            <Alert 
+              severity="success"
+              variant="outlined"
+              sx={{ 
+                '& .MuiAlert-message': { 
+                  display: 'flex', 
+                  alignItems: 'center' 
+                } 
+              }}
+            >
+              {success}
+            </Alert>
+          )}
+
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs 
+              value={activeTab} 
+              onChange={(e, newValue) => setActiveTab(newValue)}
+              sx={{ 
+                '& .MuiTab-root': {
+                  textTransform: 'none',
+                  fontSize: '0.95rem',
+                  minHeight: 48,
+                  py: 0
+                }
+              }}
+            >
+              <Tab label="Users" />
+              <Tab label="Password Entries" />
+              <Tab label="Groups" />
+              <Tab label="Login Logs" />
+            </Tabs>
+          </Box>
+
+          <TableContainer 
+            component={Paper}
+            sx={{ 
+              boxShadow: 2,
+              borderRadius: 1,
+              overflow: 'hidden'
+            }}
+          >
+            <Table size="small">
+              {activeTab === 0 && (
+                <>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Name</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Role</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user._id}>
+                        <TableCell sx={{ minWidth: 120 }}>{user.name}</TableCell>
+                        <TableCell sx={{ minWidth: 180 }}>{user.email}</TableCell>
+                        <TableCell sx={{ minWidth: 100 }}>
+                          <Chip 
+                            label={user.isAdmin ? 'Admin' : 'User'}
+                            color={user.isAdmin ? 'primary' : 'default'}
+                            size="small"
+                            sx={{ fontSize: '0.75rem', height: '24px' }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <IconButton 
+                              onClick={() => handleEditUser(user)}
+                              size="small"
+                              color="primary"
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton 
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setDialogType('changePassword');
+                                setDialogOpen(true);
+                              }}
+                              size="small"
+                              color="secondary"
+                            >
+                              <KeyIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton 
+                              onClick={() => handleDeleteUser(user._id)}
+                              size="small"
+                              color="error"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
+
+              {activeTab === 1 && (
+                <>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Title</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Username</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Password</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Owner</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Group</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {passwordEntries.map((entry) => (
+                      <TableRow key={entry._id}>
+                        <TableCell sx={{ minWidth: 150 }}>{entry.title}</TableCell>
+                        <TableCell sx={{ minWidth: 120 }}>{entry.username}</TableCell>
+                        <TableCell sx={{ minWidth: 150 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontFamily: 'monospace' }}>
+                              {showPassword[entry._id] ? entry.password : '••••••••'}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowPassword(prev => ({
+                                ...prev,
+                                [entry._id]: !prev[entry._id]
+                              }))}
+                            >
+                              {showPassword[entry._id] ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 120 }}>{entry.owner?.name}</TableCell>
+                        <TableCell sx={{ minWidth: 120 }}>{entry.group?.name || '-'}</TableCell>
+                        <TableCell>
+                          <IconButton 
+                            onClick={() => handleDeletePasswordEntry(entry._id)}
+                            size="small"
+                            color="error"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
+
+              {activeTab === 2 && (
+                <>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Name</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Owner</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Members</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {groups.map((group) => (
+                      <TableRow key={group._id}>
+                        <TableCell sx={{ minWidth: 150 }}>{group.name}</TableCell>
+                        <TableCell sx={{ minWidth: 120 }}>{group.owner?.name}</TableCell>
+                        <TableCell sx={{ minWidth: 200 }}>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {group.members.map(member => (
+                              <Chip
+                                key={member.user._id}
+                                label={`${member.user.name} (${member.role})`}
+                                size="small"
+                                color={member.role === 'admin' ? 'primary' : 'default'}
+                                sx={{ 
+                                  fontSize: '0.75rem',
+                                  height: '24px'
+                                }}
+                              />
+                            ))}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <IconButton 
+                            onClick={() => handleDeleteGroup(group._id)}
+                            size="small"
+                            color="error"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
+
+              {activeTab === 3 && (
+                <>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold' }}>User</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Timestamp</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>IP Address</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {loginLogs.map((log) => (
+                      <TableRow key={log._id}>
+                        <TableCell sx={{ minWidth: 120 }}>{log.userName}</TableCell>
+                        <TableCell sx={{ minWidth: 180 }}>{log.userEmail}</TableCell>
+                        <TableCell sx={{ minWidth: 160, fontFamily: 'monospace' }}>
+                          {new Date(log.timestamp).toLocaleString()}
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 120, fontFamily: 'monospace' }}>{log.ipAddress}</TableCell>
+                        <TableCell sx={{ minWidth: 100 }}>
+                          <Chip
+                            label={log.success ? 'Success' : 'Failed'}
+                            color={log.success ? 'success' : 'error'}
+                            size="small"
+                            sx={{ 
+                              fontSize: '0.75rem',
+                              height: '24px',
+                              minWidth: '80px'
+                            }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </>
+              )}
+            </Table>
+          </TableContainer>
+        </Box>
+
+        <Dialog 
+          open={dialogOpen} 
+          onClose={handleCloseDialog}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 1,
+              boxShadow: 3
+            }
+          }}
         >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-    </Container>
+          <DialogTitle sx={{ pb: 1 }}>
+            {dialogType === 'editUser' ? 'Edit User' : 'Change Password'}
+          </DialogTitle>
+          <DialogContent sx={{ pb: 2 }}>
+            {dialogType === 'editUser' ? (
+              <Box sx={{ pt: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Name"
+                  value={editUserData.name}
+                  onChange={(e) => setEditUserData(prev => ({ ...prev, name: e.target.value }))}
+                  sx={{ mb: 2 }}
+                  size="small"
+                />
+                <TextField
+                  fullWidth
+                  label="Email"
+                  value={editUserData.email}
+                  onChange={(e) => setEditUserData(prev => ({ ...prev, email: e.target.value }))}
+                  sx={{ mb: 2 }}
+                  size="small"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={editUserData.isAdmin}
+                      onChange={(e) => setEditUserData(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Typography variant="body2">
+                      Admin Access
+                    </Typography>
+                  }
+                />
+              </Box>
+            ) : (
+              <TextField
+                autoFocus
+                margin="dense"
+                label="New Password"
+                type="password"
+                fullWidth
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                size="small"
+                sx={{ mt: 1 }}
+              />
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button 
+              onClick={handleCloseDialog}
+              size="small"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={dialogType === 'editUser' ? handleUpdateUser : handleChangePassword}
+              variant="contained"
+              size="small"
+            >
+              {dialogType === 'editUser' ? 'Update User' : 'Change Password'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={handleSnackbarClose}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert
+            onClose={handleSnackbarClose}
+            severity={snackbar.severity}
+            variant="filled"
+            sx={{ 
+              width: '100%',
+              boxShadow: 2
+            }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Container>
+    </>
   );
 };
 

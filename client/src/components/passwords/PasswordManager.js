@@ -89,45 +89,98 @@ const PasswordManager = () => {
   }
 
   return (
-    <Container>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
+    <Container maxWidth="lg">
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        gap: 2,
+        py: 4
+      }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 'medium',
+            color: 'primary.main',
+            mb: 1
+          }}
+        >
           Password Manager
         </Typography>
         
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert 
+            severity="error" 
+            variant="outlined"
+            sx={{ 
+              '& .MuiAlert-message': { 
+                display: 'flex', 
+                alignItems: 'center' 
+              } 
+            }}
+          >
             {error}
           </Alert>
         )}
         
         {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
+          <Alert 
+            severity="success"
+            variant="outlined"
+            sx={{ 
+              '& .MuiAlert-message': { 
+                display: 'flex', 
+                alignItems: 'center' 
+              } 
+            }}
+          >
             {success}
           </Alert>
         )}
 
-        <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 3 }}>
-          <Tab label="MY PASSWORDS" />
-          <Tab label="PASSWORD GROUPS" />
-        </Tabs>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={activeTab} 
+            onChange={handleTabChange}
+            sx={{ 
+              '& .MuiTab-root': {
+                textTransform: 'none',
+                fontSize: '0.95rem',
+                minHeight: 48,
+                py: 0
+              }
+            }}
+          >
+            <Tab label="My Passwords" />
+            <Tab label="Password Groups" />
+          </Tabs>
+        </Box>
 
         <Box sx={{ mb: 2 }}>
           {activeTab === 0 ? (
             <Button
               variant="contained"
               startIcon={<AddIcon />}
+              size="small"
+              sx={{
+                textTransform: 'none',
+                fontWeight: 'medium'
+              }}
               onClick={() => setEntryDialogOpen(true)}
             >
-              ADD PASSWORD
+              Add Password
             </Button>
           ) : (
             <Button
               variant="contained"
               startIcon={<AddIcon />}
+              size="small"
+              sx={{
+                textTransform: 'none',
+                fontWeight: 'medium'
+              }}
               onClick={() => setGroupDialogOpen(true)}
             >
-              CREATE GROUP
+              Create Group
             </Button>
           )}
         </Box>
@@ -144,8 +197,14 @@ const PasswordManager = () => {
         onClose={() => setEntryDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 1,
+            boxShadow: 3
+          }
+        }}
       >
-        <DialogTitle>Add Password Entry</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>Add Password Entry</DialogTitle>
         <DialogContent>
           <PasswordEntryForm
             groups={groups}
@@ -160,8 +219,14 @@ const PasswordManager = () => {
         onClose={() => setGroupDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 1,
+            boxShadow: 3
+          }
+        }}
       >
-        <DialogTitle>Create Password Group</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>Create Password Group</DialogTitle>
         <DialogContent>
           <PasswordGroupForm
             onSubmit={handleGroupSubmit}

@@ -23,6 +23,7 @@ router.post('/entries',
 
       const { title, username, password, url, notes, groupId } = req.body;
 
+      // Create the password entry
       const entryData = {
         title,
         username,
@@ -32,15 +33,29 @@ router.post('/entries',
         owner: req.user.userId
       };
 
-      // Only add group if groupId is provided
+      // If groupId is provided, verify the group exists and user is a member
       if (groupId) {
+        const group = await PasswordGroup.findOne({
+          _id: groupId,
+          'members.user': req.user.userId
+        });
+
+        if (!group) {
+          return res.status(404).json({ message: 'Group not found or you are not a member' });
+        }
+
         entryData.group = groupId;
       }
 
       const entry = new PasswordEntry(entryData);
-
       await entry.save();
-      res.status(201).json(entry.decryptData());
+
+      // Populate the response with group details if needed
+      const populatedEntry = await PasswordEntry.findById(entry._id)
+        .populate('group', 'name members')
+        .populate('owner', 'name');
+
+      res.status(201).json(populatedEntry.decryptData());
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'Server error' });
@@ -54,9 +69,12 @@ router.get('/entries', auth, async (req, res) => {
     const entries = await PasswordEntry.find({
       $or: [
         { owner: req.user.userId },
-        { 'sharedWith.user': req.user.userId }
+        { group: { $in: await getGroupIds(req.user.userId) } }
       ]
-    }).sort({ lastModified: -1 });
+    })
+    .populate('group', 'name members')
+    .populate('owner', 'name')
+    .sort({ lastModified: -1 });
 
     // Decrypt sensitive data
     const decryptedEntries = entries.map(entry => entry.decryptData());
@@ -90,68 +108,98 @@ router.get('/entries/:id', auth, async (req, res) => {
 });
 
 // Update a password entry
-router.put('/entries/:id',
-  auth,
-  [
-    body('title').optional().trim().not().isEmpty(),
-    body('username').optional().trim().not().isEmpty(),
-    body('password').optional().not().isEmpty()
-  ],
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
+router.put('/entries/:id', auth, async (req, res) => {
+  try {
+    const entry = await PasswordEntry.findOne({
+      _id: req.params.id
+    }).populate('group', 'members');
 
-      const entry = await PasswordEntry.findOne({
-        _id: req.params.id,
-        $or: [
-          { owner: req.user.userId },
-          { 'sharedWith.user': req.user.userId, 'sharedWith.permission': 'edit' }
-        ]
-      });
-
-      if (!entry) {
-        return res.status(404).json({ message: 'Password entry not found or permission denied' });
-      }
-
-      // Update fields directly on the document
-      if (req.body.title) entry.title = req.body.title;
-      if (req.body.username) entry.username = req.body.username;
-      if (req.body.password) entry.password = req.body.password;
-      if (req.body.url) entry.url = req.body.url;
-      if (req.body.notes) entry.notes = req.body.notes;
-
-      // Save the document to trigger the encryption middleware
-      await entry.save();
-
-      // Return decrypted data
-      res.json(entry.decryptData());
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'Server error' });
+    if (!entry) {
+      return res.status(404).json({ message: 'Password entry not found' });
     }
+
+    // Check if user has edit permissions
+    const canEdit = entry.owner.toString() === req.user.userId || 
+      (entry.group && entry.group.members.some(m => 
+        m.user.toString() === req.user.userId && m.role === 'admin'
+      ));
+
+    if (!canEdit) {
+      return res.status(403).json({ message: 'You do not have permission to edit this password' });
+    }
+
+    const { title, username, password, url, notes, groupId } = req.body;
+
+    // Update the entry
+    entry.title = title;
+    entry.username = username;
+    entry.password = password;
+    entry.url = url;
+    entry.notes = notes;
+
+    // Handle group changes
+    if (groupId !== undefined) {
+      if (groupId) {
+        const group = await PasswordGroup.findOne({
+          _id: groupId,
+          'members.user': req.user.userId
+        });
+
+        if (!group) {
+          return res.status(404).json({ message: 'Group not found or you are not a member' });
+        }
+
+        entry.group = groupId;
+      } else {
+        entry.group = null;
+      }
+    }
+
+    await entry.save();
+
+    // Populate the response
+    const updatedEntry = await PasswordEntry.findById(entry._id)
+      .populate('group', 'name members')
+      .populate('owner', 'name');
+
+    res.json(updatedEntry.decryptData());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
   }
-);
+});
 
 // Delete a password entry
 router.delete('/entries/:id', auth, async (req, res) => {
   try {
-    const entry = await PasswordEntry.findOne({
-      _id: req.params.id,
-      owner: req.user.userId
-    });
+    const entry = await PasswordEntry.findById(req.params.id)
+      .populate('group', 'members');
 
     if (!entry) {
-      return res.status(404).json({ message: 'Password entry not found or permission denied' });
+      return res.status(404).json({ message: 'Password entry not found' });
     }
 
-    await PasswordEntry.deleteOne({ _id: req.params.id });
-    res.json({ message: 'Password entry deleted' });
+    // Check if user has delete permissions
+    const canDelete = 
+      // User is admin
+      req.user.isAdmin || 
+      // User is owner
+      entry.owner.toString() === req.user.userId || 
+      // User is group admin
+      (entry.group && entry.group.members.some(m => 
+        m.user.toString() === req.user.userId && 
+        m.role === 'admin'
+      ));
+
+    if (!canDelete) {
+      return res.status(403).json({ message: 'You do not have permission to delete this password' });
+    }
+
+    await entry.remove();
+    res.json({ message: 'Password entry deleted successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Delete password error:', err);
+    res.status(500).json({ message: 'Server error while deleting password entry' });
   }
 });
 
@@ -281,5 +329,13 @@ router.delete('/groups/:id', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Helper function to get groups where user is a member
+async function getGroupIds(userId) {
+  const groups = await PasswordGroup.find({
+    'members.user': userId
+  });
+  return groups.map(g => g._id);
+}
 
 module.exports = router; 

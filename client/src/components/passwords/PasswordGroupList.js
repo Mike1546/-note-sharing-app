@@ -86,67 +86,144 @@ const PasswordGroupList = ({ groups, onUpdate }) => {
     <Grid container spacing={3}>
       {groups.map((group) => (
         <Grid item xs={12} sm={6} md={4} key={group._id}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+          <Card 
+            sx={{ 
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              borderRadius: 1,
+              boxShadow: 2
+            }}
+          >
+            <CardContent sx={{ flexGrow: 1, pb: 1 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  mb: 1,
+                  fontWeight: 'medium',
+                  color: 'primary.main'
+                }}
+              >
                 {group.name}
               </Typography>
+              
               {group.description && (
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  sx={{ 
+                    mb: 2,
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical'
+                  }}
+                >
                   {group.description}
                 </Typography>
               )}
-              <Typography variant="subtitle2" gutterBottom>
+
+              <Typography 
+                variant="subtitle2" 
+                sx={{ 
+                  mb: 1,
+                  fontWeight: 'medium',
+                  color: 'text.primary'
+                }}
+              >
                 Members:
               </Typography>
-              <List dense>
+              
+              <List sx={{ p: 0 }}>
                 {group.members.map((member) => (
-                  <ListItem key={`${group._id}-${member.user._id}`}>
+                  <ListItem 
+                    key={`${group._id}-${member.user._id}`}
+                    sx={{
+                      px: 0,
+                      py: 0.75,
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      '&:last-child': {
+                        borderBottom: 'none'
+                      }
+                    }}
+                  >
                     <ListItemText
                       primary={member.user.name}
                       secondary={member.user.email}
+                      primaryTypographyProps={{
+                        variant: 'body2',
+                        fontWeight: 'medium',
+                        sx: { mb: 0.25 }
+                      }}
+                      secondaryTypographyProps={{
+                        variant: 'caption',
+                        sx: { 
+                          color: 'text.secondary',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }
+                      }}
+                      sx={{ mr: 1 }}
                     />
-                    <ListItemSecondaryAction>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip
                         label={member.role}
                         size="small"
                         color={member.role === 'admin' ? 'primary' : 'default'}
+                        sx={{ 
+                          minWidth: 70,
+                          height: '24px',
+                          fontSize: '0.75rem'
+                        }}
                       />
                       {group.members.length > 1 && (
                         <IconButton
                           size="small"
                           onClick={() => handleRemoveMember(group._id, member.user._id)}
+                          color="error"
+                          sx={{ p: 0.5 }}
                         >
-                          <PersonRemoveIcon />
+                          <PersonRemoveIcon fontSize="small" />
                         </IconButton>
                       )}
-                    </ListItemSecondaryAction>
+                    </Box>
                   </ListItem>
                 ))}
               </List>
             </CardContent>
-            <CardActions>
-              <IconButton
-                size="small"
-                onClick={() => {
-                  setSelectedGroup(group);
-                  setAddMemberDialogOpen(true);
-                }}
-              >
-                <PersonAddIcon />
-              </IconButton>
-              <IconButton
-                size="small"
-                onClick={() => handleEdit(group)}
-              >
-                <EditIcon />
-              </IconButton>
-              <IconButton
-                size="small"
-                onClick={() => handleDelete(group._id)}
-              >
-                <DeleteIcon />
-              </IconButton>
+
+            <CardActions sx={{ px: 2, py: 1, borderTop: 1, borderColor: 'divider' }}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setSelectedGroup(group);
+                    setAddMemberDialogOpen(true);
+                  }}
+                  color="primary"
+                  sx={{ p: 0.5 }}
+                >
+                  <PersonAddIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => handleEdit(group)}
+                  color="primary"
+                  sx={{ p: 0.5 }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => handleDelete(group._id)}
+                  color="error"
+                  sx={{ p: 0.5 }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Box>
             </CardActions>
           </Card>
         </Grid>
@@ -157,8 +234,14 @@ const PasswordGroupList = ({ groups, onUpdate }) => {
         onClose={() => setAddMemberDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 1,
+            boxShadow: 3
+          }
+        }}
       >
-        <DialogTitle>Add Member to Group</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>Add Member to Group</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
@@ -168,28 +251,80 @@ const PasswordGroupList = ({ groups, onUpdate }) => {
             fullWidth
             value={newMemberEmail}
             onChange={(e) => setNewMemberEmail(e.target.value)}
+            size="small"
+            sx={{
+              mt: 2,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 1
+              }
+            }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddMemberDialogOpen(false)}>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button 
+            onClick={() => setAddMemberDialogOpen(false)}
+            size="small"
+            sx={{
+              textTransform: 'none',
+              fontWeight: 'medium'
+            }}
+          >
             Cancel
           </Button>
-          <Button onClick={handleAddMember} variant="contained">
+          <Button 
+            onClick={handleAddMember} 
+            variant="contained"
+            size="small"
+            sx={{
+              textTransform: 'none',
+              fontWeight: 'medium'
+            }}
+          >
             Add Member
           </Button>
         </DialogActions>
       </Dialog>
 
-      {error && (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {error}
-        </Alert>
-      )}
-      
-      {success && (
-        <Alert severity="success" sx={{ mt: 2 }}>
-          {success}
-        </Alert>
+      {(error || success) && (
+        <Box 
+          sx={{ 
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+            zIndex: 2000,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1
+          }}
+        >
+          {error && (
+            <Alert 
+              severity="error" 
+              variant="filled"
+              onClose={() => setError('')}
+              sx={{ 
+                minWidth: '250px',
+                boxShadow: 3
+              }}
+            >
+              {error}
+            </Alert>
+          )}
+          
+          {success && (
+            <Alert 
+              severity="success"
+              variant="filled"
+              onClose={() => setSuccess('')}
+              sx={{ 
+                minWidth: '250px',
+                boxShadow: 3
+              }}
+            >
+              {success}
+            </Alert>
+          )}
+        </Box>
       )}
     </Grid>
   );

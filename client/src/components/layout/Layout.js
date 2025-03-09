@@ -53,6 +53,10 @@ const Layout = ({ children }) => {
   };
 
   const handleBack = () => {
+    if (location.pathname === '/') {
+      // If on home page, do nothing when back button is clicked
+      return;
+    }
     navigate(-1);
   };
 
@@ -117,16 +121,15 @@ const Layout = ({ children }) => {
           >
             <MenuIcon />
           </IconButton>
-          {!isHomePage && (
-            <IconButton
-              color="inherit"
-              edge="start"
-              onClick={handleBack}
-              sx={{ mr: 2 }}
-            >
-              <ArrowBackIcon />
-            </IconButton>
-          )}
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={handleBack}
+            sx={{ mr: 2, display: isHomePage ? 'none' : 'flex' }}
+            aria-label="back"
+          >
+            <ArrowBackIcon />
+          </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {user?.name}'s Notes
           </Typography>

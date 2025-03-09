@@ -34,7 +34,16 @@ const PasswordGroupForm = ({ group, onSubmit, onCancel }) => {
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit}>
+    <Box 
+      component="form" 
+      onSubmit={handleSubmit}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        pt: 1
+      }}
+    >
       <Grid container spacing={2}>
         <Grid item xs={12}>
           <TextField
@@ -44,6 +53,12 @@ const PasswordGroupForm = ({ group, onSubmit, onCancel }) => {
             value={formData.name}
             onChange={handleChange}
             required
+            size="small"
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 1
+              }
+            }}
           />
         </Grid>
         <Grid item xs={12}>
@@ -55,14 +70,35 @@ const PasswordGroupForm = ({ group, onSubmit, onCancel }) => {
             rows={3}
             value={formData.description}
             onChange={handleChange}
+            size="small"
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 1
+              }
+            }}
           />
         </Grid>
         <Grid item xs={12}>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-            <Button onClick={onCancel}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
+            <Button 
+              onClick={onCancel}
+              size="small"
+              sx={{
+                textTransform: 'none',
+                fontWeight: 'medium'
+              }}
+            >
               Cancel
             </Button>
-            <Button type="submit" variant="contained">
+            <Button 
+              type="submit" 
+              variant="contained"
+              size="small"
+              sx={{
+                textTransform: 'none',
+                fontWeight: 'medium'
+              }}
+            >
               {group ? 'Update' : 'Create'} Group
             </Button>
           </Box>

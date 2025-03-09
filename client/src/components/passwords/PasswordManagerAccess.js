@@ -74,7 +74,8 @@ const PasswordManagerAccess = ({ onAccess }) => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '60vh'
+        minHeight: '80vh',
+        bgcolor: 'background.default'
       }}
     >
       <Paper
@@ -85,29 +86,75 @@ const PasswordManagerAccess = ({ onAccess }) => {
           flexDirection: 'column',
           alignItems: 'center',
           maxWidth: 400,
-          width: '100%'
+          width: '100%',
+          borderRadius: 2,
+          boxShadow: (theme) => theme.shadows[8]
         }}
       >
-        <LockIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-        <Typography variant="h5" component="h1" gutterBottom>
+        <LockIcon sx={{ fontSize: 48, color: 'primary.main', mb: 3 }} />
+        <Typography 
+          variant="h5" 
+          component="h1" 
+          sx={{ 
+            fontWeight: 'medium',
+            color: 'primary.main',
+            mb: 1 
+          }}
+        >
           Password Manager Access
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        <Typography 
+          variant="body2" 
+          color="text.secondary" 
+          sx={{ 
+            mb: 3,
+            textAlign: 'center'
+          }}
+        >
           Enter your password to access the password manager
         </Typography>
         
         {error && (
-          <Alert severity="error" sx={{ mb: 2, width: '100%' }}>
+          <Alert 
+            severity="error" 
+            variant="outlined"
+            sx={{ 
+              mb: 2, 
+              width: '100%',
+              '& .MuiAlert-message': { 
+                width: '100%' 
+              }
+            }}
+          >
             {error}
           </Alert>
         )}
         
         {isLocked ? (
-          <Alert severity="warning" sx={{ mb: 2, width: '100%' }}>
+          <Alert 
+            severity="warning" 
+            variant="outlined"
+            sx={{ 
+              mb: 2, 
+              width: '100%',
+              '& .MuiAlert-message': { 
+                width: '100%' 
+              }
+            }}
+          >
             Too many failed attempts. Please try again in {lockoutTimer} seconds.
           </Alert>
         ) : (
-          <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+          <Box 
+            component="form" 
+            onSubmit={handleSubmit} 
+            sx={{ 
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2
+            }}
+          >
             <TextField
               fullWidth
               type="password"
@@ -116,13 +163,24 @@ const PasswordManagerAccess = ({ onAccess }) => {
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLocked}
               required
-              sx={{ mb: 2 }}
+              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 1
+                }
+              }}
             />
             <Button
               fullWidth
               type="submit"
               variant="contained"
               disabled={isLocked}
+              sx={{
+                py: 1,
+                textTransform: 'none',
+                borderRadius: 1,
+                fontWeight: 'medium'
+              }}
             >
               Access Password Manager
             </Button>
