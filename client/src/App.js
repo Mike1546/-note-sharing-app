@@ -1,8 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 
 // Components
 import Login from './components/auth/Login';
@@ -13,26 +14,23 @@ import Layout from './components/layout/Layout';
 import AdminPortal from './components/admin/AdminPortal';
 import PasswordManager from './components/passwords/PasswordManager';
 
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#2196f3',
+const AppContent = () => {
+  const { darkMode } = useTheme();
+  
+  const theme = createTheme({
+    palette: {
+      mode: darkMode ? 'dark' : 'light',
+      primary: {
+        main: '#2196f3',
+      },
+      secondary: {
+        main: '#f50057',
+      },
     },
-    secondary: {
-      main: '#f50057',
-    },
-  },
-});
+  });
 
-const PrivateRoute = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Navigate to="/login" />;
-};
-
-function App() {
   return (
-    <ThemeProvider theme={theme}>
+    <MuiThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
         <Router>
@@ -73,6 +71,19 @@ function App() {
           </Routes>
         </Router>
       </AuthProvider>
+    </MuiThemeProvider>
+  );
+};
+
+const PrivateRoute = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? children : <Navigate to="/login" />;
+};
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
     </ThemeProvider>
   );
 }

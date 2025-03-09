@@ -13,8 +13,9 @@ import {
   Toolbar,
   Typography,
   Divider,
-  useTheme,
-  useMediaQuery
+  useTheme as useMuiTheme,
+  useMediaQuery,
+  Tooltip
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -24,17 +25,21 @@ import {
   Lock as LockIcon,
   Notes as NotesIcon,
   AdminPanelSettings as AdminIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  Brightness4 as DarkModeIcon,
+  Brightness7 as LightModeIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const drawerWidth = 240;
 
 const Layout = ({ children }) => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const muiTheme = useMuiTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { darkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -125,6 +130,11 @@ const Layout = ({ children }) => {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {user?.name}'s Notes
           </Typography>
+          <Tooltip title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+            <IconButton color="inherit" onClick={toggleDarkMode}>
+              {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
+            </IconButton>
+          </Tooltip>
           <IconButton color="inherit" onClick={() => navigate('/profile')}>
             <PersonIcon />
           </IconButton>
