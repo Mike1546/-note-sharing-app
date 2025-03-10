@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   TextField,
@@ -14,7 +14,11 @@ import {
   Chip,
   Stack,
   Typography,
-  Alert
+  Alert,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -27,14 +31,20 @@ import axios from 'axios';
 const NoteEditor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const groupIdFromUrl = queryParams.get('groupId');
+
   const [note, setNote] = useState({
     title: '',
     content: '',
     isLocked: false,
     lockPasscode: '',
     isEncrypted: false,
-    tags: []
+    tags: [],
+    groupId: groupIdFromUrl || ''
   });
+  const [groups, setGroups] = useState([]);
   const [originalContent, setOriginalContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -46,12 +56,23 @@ const NoteEditor = () => {
   const [isSettingLockPasscode, setIsSettingLockPasscode] = useState(false);
 
   useEffect(() => {
+    fetchGroups();
     if (id && id !== 'new') {
       fetchNote();
     } else {
       setLoading(false);
     }
   }, [id]);
+
+  const fetchGroups = async () => {
+    try {
+      const response = await axios.get('/api/notes/groups');
+      setGroups(response.data);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      setError('Failed to fetch groups');
+    }
+  };
 
   const fetchNote = async (providedPasscode = null) => {
     try {
@@ -192,37 +213,25 @@ const NoteEditor = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
-      const config = {
-        headers: { Authorization: `Bearer ${token}` }
+      const noteData = {
+        title: note.title,
+        content: note.content,
+        isLocked: note.isLocked,
+        lockPasscode: note.lockPasscode,
+        tags: note.tags,
+        isEncrypted: note.isEncrypted,
+        groupId: note.groupId || null
       };
 
-      // Prepare note data for saving
-      const noteToSave = {
-        ...note,
-        content: note.isLocked ? originalContent || note.content : note.content,
-        lockPasscode: note.isLocked ? note.lockPasscode : ''
-      };
-
-      if (id === 'new') {
-        await axios.post('/api/notes', noteToSave, config);
+      if (id && id !== 'new') {
+        await axios.put(`/api/notes/${id}`, noteData);
       } else {
-        await axios.put(`/api/notes/${id}`, noteToSave, config);
+        await axios.post('/api/notes', noteData);
       }
-
-      // After saving, if the note is locked, update the display
-      if (note.isLocked) {
-        setOriginalContent(noteToSave.content);
-        setNote({
-          ...noteToSave,
-          content: '🔒 This note is locked. Enter passcode to view.'
-        });
-      }
-
       navigate('/');
     } catch (error) {
       console.error('Error saving note:', error);
-      setError('Error saving note');
+      setError(error.response?.data?.message || 'Error saving note');
     }
   };
 
@@ -261,8 +270,26 @@ const NoteEditor = () => {
           multiline
           rows={12}
           variant="outlined"
+          sx={{ mb: 2 }}
           disabled={isNoteLocked && !note.lockPasscode}
         />
+
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel>Group</InputLabel>
+          <Select
+            name="groupId"
+            value={note.groupId}
+            onChange={handleChange}
+            label="Group"
+          >
+            <MenuItem value="">No Group</MenuItem>
+            {groups.map((group) => (
+              <MenuItem key={group._id} value={group._id}>
+                {group.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       </Box>
 
       <Box sx={{ mb: 2 }}>

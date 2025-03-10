@@ -4,6 +4,261 @@ const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Note = require('../models/Note');
 const CryptoJS = require('crypto-js');
+const NoteGroup = require('../models/NoteGroup');
+const User = require('../models/User');
+const mongoose = require('mongoose');
+
+// Create a note group
+router.post('/groups', auth, async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ message: 'Group name is required' });
+    }
+
+    const group = new NoteGroup({
+      name,
+      description,
+      owner: req.user.userId,
+      members: [req.user.userId]
+    });
+
+    await group.save();
+    res.status(201).json(group);
+  } catch (error) {
+    console.error('Error creating note group:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get all note groups for the user
+router.get('/groups', auth, async (req, res) => {
+  try {
+    // Check MongoDB connection state
+    if (mongoose.connection.readyState !== 1) {
+      console.error('MongoDB not connected. Current state:', mongoose.connection.readyState);
+      return res.status(500).json({ 
+        message: 'Database connection error',
+        details: 'MongoDB not connected'
+      });
+    }
+
+    console.log('GET /groups - Headers:', req.headers);
+    console.log('GET /groups - Auth token:', req.header('Authorization'));
+    console.log('GET /groups - MongoDB connection state:', mongoose.connection.readyState);
+
+    console.log('GET /groups - User object:', {
+      userId: req.user.userId,
+      name: req.user.name,
+      email: req.user.email,
+      type: typeof req.user.userId,
+      isObjectId: req.user.userId instanceof mongoose.Types.ObjectId
+    });
+
+    let userId;
+    try {
+      // Ensure userId is a valid ObjectId
+      userId = mongoose.Types.ObjectId.isValid(req.user.userId) 
+        ? req.user.userId 
+        : new mongoose.Types.ObjectId(req.user.userId);
+    } catch (err) {
+      console.error('Error converting userId to ObjectId:', err);
+      return res.status(400).json({ 
+        message: 'Invalid user ID format',
+        error: err.message
+      });
+    }
+
+    const query = {
+      $or: [
+        { owner: userId },
+        { members: userId }
+      ]
+    };
+
+    console.log('GET /groups - Query:', JSON.stringify(query));
+
+    const groups = await NoteGroup.find(query)
+      .populate('members', 'name email')
+      .populate('owner', 'name email')
+      .lean()
+      .exec();
+    
+    if (!groups) {
+      console.log('GET /groups - No groups found');
+      return res.json([]);
+    }
+
+    console.log('GET /groups - Raw query result:', JSON.stringify(groups));
+
+    const processedGroups = groups.map(g => ({
+      ...g,
+      id: g._id.toString(),
+      owner: typeof g.owner === 'object' ? {
+        id: g.owner._id.toString(),
+        name: g.owner.name,
+        email: g.owner.email
+      } : g.owner.toString(),
+      members: Array.isArray(g.members) ? g.members.map(m => ({
+        id: m._id.toString(),
+        name: m.name,
+        email: m.email
+      })) : []
+    }));
+
+    console.log('GET /groups - Processed groups:', JSON.stringify(processedGroups));
+
+    res.json(processedGroups);
+  } catch (error) {
+    console.error('Error fetching note groups:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      query: error.query,
+      code: error.code,
+      userId: req.user?.userId,
+      mongoState: mongoose.connection.readyState
+    });
+    res.status(500).json({ 
+      message: 'Server error',
+      error: error.message,
+      details: {
+        userId: req.user?.userId,
+        code: error.code,
+        mongoState: mongoose.connection.readyState
+      }
+    });
+  }
+});
+
+// Get notes by group ID
+router.get('/group/:groupId', auth, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    
+    // Verify the group exists and user has access
+    const group = await NoteGroup.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+    
+    // Check if user is a member or owner of the group
+    if (!group.members.includes(req.user.userId) && group.owner.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to view notes in this group' });
+    }
+
+    const notes = await Note.find({ group: groupId })
+      .sort({ lastModified: -1 })
+      .populate('owner', 'name email');
+
+    // Process notes before sending
+    const processedNotes = notes.map(note => {
+      const processedNote = note.toObject();
+      
+      // If note is locked, mask the content
+      if (note.isLocked) {
+        processedNote.content = '🔒 This note is locked. Enter passcode to view.';
+        return processedNote;
+      }
+
+      // If note is encrypted, decrypt it
+      if (note.isEncrypted) {
+        const bytes = CryptoJS.AES.decrypt(
+          note.content,
+          process.env.ENCRYPTION_KEY || 'your-encryption-key'
+        );
+        processedNote.content = bytes.toString(CryptoJS.enc.Utf8);
+      }
+
+      return processedNote;
+    });
+
+    res.json(processedNotes);
+  } catch (err) {
+    console.error('Error fetching group notes:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Add a member to a note group
+router.post('/groups/:groupId/members', auth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    const group = await NoteGroup.findById(req.params.groupId);
+
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    if (group.owner.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to add members' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (group.members.includes(user._id)) {
+      return res.status(400).json({ message: 'User is already a member' });
+    }
+
+    group.members.push(user._id);
+    await group.save();
+
+    res.json(group);
+  } catch (error) {
+    console.error('Error adding member to group:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Remove a member from a note group
+router.delete('/groups/:groupId/members/:memberId', auth, async (req, res) => {
+  try {
+    const group = await NoteGroup.findById(req.params.groupId);
+
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    if (group.owner.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to remove members' });
+    }
+
+    group.members = group.members.filter(
+      member => member.toString() !== req.params.memberId
+    );
+
+    await group.save();
+    res.json(group);
+  } catch (error) {
+    console.error('Error removing member from group:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete a note group
+router.delete('/groups/:groupId', auth, async (req, res) => {
+  try {
+    const group = await NoteGroup.findById(req.params.groupId);
+
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    if (group.owner.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete group' });
+    }
+
+    await NoteGroup.deleteOne({ _id: req.params.groupId });
+    res.json({ message: 'Group deleted' });
+  } catch (error) {
+    console.error('Error deleting note group:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 // Create a note
 router.post('/',
@@ -30,21 +285,27 @@ router.post('/',
         }
       }
 
-      const { title, content, isLocked, lockPasscode, tags, isEncrypted } = noteData;
+      const { title, content, isLocked, lockPasscode, tags, isEncrypted, groupId } = noteData;
 
       let processedContent = content;
       if (isEncrypted) {
-        // Encrypt content if requested
         processedContent = CryptoJS.AES.encrypt(
           content,
           process.env.ENCRYPTION_KEY || 'your-encryption-key'
         ).toString();
       }
 
-      console.log('Creating note with user ID:', req.user.userId);
-      console.log('Request user object:', req.user);
+      // If groupId is provided, verify user has access to the group
+      if (groupId) {
+        const group = await NoteGroup.findById(groupId);
+        if (!group) {
+          return res.status(404).json({ message: 'Group not found' });
+        }
+        if (!group.members.includes(req.user.userId) && group.owner.toString() !== req.user.userId.toString()) {
+          return res.status(403).json({ message: 'Not authorized to add notes to this group' });
+        }
+      }
 
-      // Create note with proper owner ObjectId
       const note = new Note({
         title,
         content: processedContent,
@@ -52,16 +313,16 @@ router.post('/',
         isLocked: isLocked || false,
         lockPasscode: lockPasscode || '',
         tags: tags || [],
-        isEncrypted: isEncrypted || false
+        isEncrypted: isEncrypted || false,
+        group: groupId || null
       });
-
-      console.log('Note object before save:', note);
 
       const savedNote = await note.save();
       console.log('Note saved successfully:', {
         id: savedNote._id,
         title: savedNote.title,
-        owner: savedNote.owner
+        owner: savedNote.owner,
+        group: savedNote.group
       });
       
       res.status(201).json(savedNote);

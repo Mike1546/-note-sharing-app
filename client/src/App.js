@@ -4,6 +4,7 @@ import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material/st
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Components
 import Login from './components/auth/Login';
@@ -34,41 +35,43 @@ const AppContent = () => {
       <CssBaseline />
       <AuthProvider>
         <Router>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/admin" element={<AdminPortal />} />
-            <Route
-              path="/"
-              element={
-                <PrivateRoute>
-                  <Layout>
-                    <Dashboard />
-                  </Layout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/notes/:id"
-              element={
-                <PrivateRoute>
-                  <Layout>
-                    <NoteEditor />
-                  </Layout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/passwords"
-              element={
-                <PrivateRoute>
-                  <Layout>
-                    <PasswordManager />
-                  </Layout>
-                </PrivateRoute>
-              }
-            />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/admin" element={<AdminPortal />} />
+              <Route
+                path="/"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <Dashboard />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/notes/:id"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <NoteEditor />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/passwords"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <PasswordManager />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+            </Routes>
+          </ErrorBoundary>
         </Router>
       </AuthProvider>
     </MuiThemeProvider>

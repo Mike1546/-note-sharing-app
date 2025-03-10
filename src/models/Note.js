@@ -15,6 +15,10 @@ const noteSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  group: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'NoteGroup'
+  },
   sharedWith: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -61,6 +65,7 @@ noteSchema.pre('save', function(next) {
 // Index for faster queries
 noteSchema.index({ owner: 1, title: 1 });
 noteSchema.index({ 'sharedWith.user': 1 });
+noteSchema.index({ group: 1 });
 
 const Note = mongoose.model('Note', noteSchema);
 

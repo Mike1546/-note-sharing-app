@@ -15,7 +15,14 @@ import {
   Divider,
   useTheme as useMuiTheme,
   useMediaQuery,
-  Tooltip
+  Tooltip,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Alert
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -42,27 +49,61 @@ const Layout = ({ children }) => {
   const { darkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
+  // Set loading to false when component mounts
+  React.useEffect(() => {
+    setIsLoading(false);
+  }, []);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const handleBack = () => {
+  const handleBack = React.useCallback(() => {
     if (location.pathname === '/') {
-      // If on home page, do nothing when back button is clicked
       return;
     }
     navigate(-1);
-  };
+  }, [location.pathname, navigate]);
+
+  // Add keyboard shortcuts
+  React.useEffect(() => {
+    const handleKeyPress = (event) => {
+      // Ctrl/Cmd + B for back
+      if ((event.ctrlKey || event.metaKey) && event.key === 'b') {
+        event.preventDefault();
+        handleBack();
+      }
+      // Ctrl/Cmd + L for logout
+      if ((event.ctrlKey || event.metaKey) && event.key === 'l') {
+        event.preventDefault();
+        setLogoutDialogOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [handleBack]);
+
+  const handleDrawerToggle = React.useCallback(() => {
+    setMobileOpen(prev => !prev);
+  }, []);
+
+  const handleLogout = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      await logout();
+      navigate('/login');
+    } catch (err) {
+      setError('Failed to logout. Please try again.');
+    } finally {
+      setIsLoading(false);
+      setLogoutDialogOpen(false);
+    }
+  }, [logout, navigate]);
 
   const isHomePage = location.pathname === '/';
 
-  const drawer = (
+  const drawer = React.useMemo(() => (
     <div>
       <Toolbar>
         <Typography variant="h6" noWrap component="div">
@@ -99,7 +140,7 @@ const Layout = ({ children }) => {
         )}
       </List>
     </div>
-  );
+  ), [navigate, user?.isAdmin]);
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -131,8 +172,17 @@ const Layout = ({ children }) => {
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {user?.name}'s Notes
+            {isLoading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              `${user?.name}'s Notes`
+            )}
           </Typography>
+          {error && (
+            <Alert severity="error" sx={{ mr: 2 }}>
+              {error}
+            </Alert>
+          )}
           <Tooltip title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
             <IconButton color="inherit" onClick={toggleDarkMode}>
               {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
@@ -141,7 +191,11 @@ const Layout = ({ children }) => {
           <IconButton color="inherit" onClick={() => navigate('/profile')}>
             <PersonIcon />
           </IconButton>
-          <IconButton color="inherit" onClick={handleLogout}>
+          <IconButton 
+            color="inherit" 
+            onClick={() => setLogoutDialogOpen(true)}
+            disabled={isLoading}
+          >
             <LogoutIcon />
           </IconButton>
         </Toolbar>
@@ -178,6 +232,28 @@ const Layout = ({ children }) => {
       >
         {children}
       </Box>
+
+      <Dialog
+        open={logoutDialogOpen}
+        onClose={() => setLogoutDialogOpen(false)}
+        aria-labelledby="logout-dialog-title"
+      >
+        <DialogTitle id="logout-dialog-title">Confirm Logout</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to logout?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLogoutDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleLogout} 
+            color="primary" 
+            variant="contained"
+            disabled={isLoading}
+          >
+            {isLoading ? <CircularProgress size={24} /> : 'Logout'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
