@@ -101,10 +101,6 @@ const PasswordManagerAccess = ({ onAccess, requireSecondPassword, onSetupComplet
     }
   };
 
-  if (!requireSecondPassword) {
-    return null;
-  }
-
   if (showSetup) {
     return (
       <Dialog open={true} maxWidth="sm" fullWidth>
@@ -119,6 +115,7 @@ const PasswordManagerAccess = ({ onAccess, requireSecondPassword, onSetupComplet
               onChange={(e) => setSetupPassword(e.target.value)}
               required
               margin="normal"
+              autoFocus
             />
             <TextField
               fullWidth
@@ -130,14 +127,20 @@ const PasswordManagerAccess = ({ onAccess, requireSecondPassword, onSetupComplet
               margin="normal"
             />
             {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-            <DialogActions>
+            <DialogActions sx={{ mt: 2, px: 0 }}>
               <Button onClick={onSetupCancel}>Cancel</Button>
-              <Button type="submit" variant="contained">Save</Button>
+              <Button onClick={handleSetupSubmit} variant="contained" color="primary">
+                Save
+              </Button>
             </DialogActions>
           </Box>
         </DialogContent>
       </Dialog>
     );
+  }
+
+  if (!requireSecondPassword) {
+    return null;
   }
 
   return (

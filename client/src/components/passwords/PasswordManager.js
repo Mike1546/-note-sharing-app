@@ -53,19 +53,34 @@ const PasswordManager = () => {
 
   const handleSecondPasswordToggle = async (event) => {
     const newValue = event.target.checked;
+    console.log('Toggle clicked, new value:', newValue);
     
-    if (newValue) {
-      setShowSetupDialog(true);
-    } else {
-      try {
-        await axios.post('/api/passwords/second-password/settings', {
+    try {
+      if (newValue) {
+        // When turning ON, show the setup dialog and set the state
+        setShowSetupDialog(true);
+        setRequireSecondPassword(true); // Set this to true immediately to show the switch as checked
+      } else {
+        // When turning OFF, disable second password
+        const response = await axios.post('/api/passwords/second-password/settings', {
           requireSecondPassword: false
         });
-        setRequireSecondPassword(false);
-        setHasAccess(true);
-      } catch (err) {
-        setError('Failed to update settings');
+
+        console.log('Toggle OFF response:', response.data);
+        
+        if (response.status === 200) {
+          setRequireSecondPassword(false);
+          setHasAccess(true);
+          setSuccess('Second password requirement disabled');
+        } else {
+          throw new Error('Failed to disable second password');
+        }
       }
+    } catch (err) {
+      console.error('Toggle error:', err);
+      setError(err.response?.data?.message || 'Failed to update settings');
+      // Revert the switch state
+      setRequireSecondPassword(!newValue);
     }
   };
 
@@ -73,11 +88,12 @@ const PasswordManager = () => {
     setShowSetupDialog(false);
     setRequireSecondPassword(true);
     setHasAccess(false);
+    setSuccess('Second password requirement enabled');
   };
 
   const handleSetupCancel = () => {
     setShowSetupDialog(false);
-    setRequireSecondPassword(false);
+    setRequireSecondPassword(false); // Reset the toggle state when canceling setup
   };
 
   const fetchEntries = useCallback(async () => {
@@ -164,6 +180,16 @@ const PasswordManager = () => {
           label="Require Second Password"
         />
       </Box>
+
+      {showSetupDialog && (
+        <PasswordManagerAccess 
+          onAccess={handleAccess}
+          requireSecondPassword={requireSecondPassword}
+          onSetupComplete={handleSetupComplete}
+          showSetup={showSetupDialog}
+          onSetupCancel={handleSetupCancel}
+        />
+      )}
 
       {error && (
         <Alert 

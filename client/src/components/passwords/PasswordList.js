@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Grid,
   Card,
@@ -33,6 +33,16 @@ const PasswordList = ({ entries, onUpdate }) => {
   const [showPassword, setShowPassword] = useState({});
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Add logging for initial render and props
+  useEffect(() => {
+    console.log('PasswordList rendered with entries:', entries);
+  }, [entries]);
+
+  // Add logging for showPassword state changes
+  useEffect(() => {
+    console.log('showPassword state changed:', showPassword);
+  }, [showPassword]);
 
   const handleEdit = (entry) => {
     setSelectedEntry(entry);
@@ -88,10 +98,16 @@ const PasswordList = ({ entries, onUpdate }) => {
   };
 
   const togglePasswordVisibility = (entryId) => {
-    setShowPassword(prev => ({
-      ...prev,
-      [entryId]: !prev[entryId]
-    }));
+    console.log('Toggle called for:', entryId);
+    console.log('Current showPassword state:', showPassword);
+    setShowPassword(prevState => {
+      const newState = {
+        ...prevState,
+        [entryId]: !prevState[entryId]
+      };
+      console.log('New state will be:', newState);
+      return newState;
+    });
   };
 
   const copyToClipboard = (text) => {
@@ -129,12 +145,19 @@ const PasswordList = ({ entries, onUpdate }) => {
     if (user?.isAdmin) return true;
     
     // User can view if they are the owner
-    if (entry.owner?._id === user?._id || entry.owner === user?._id) return true;
+    // Check all possible owner ID formats
+    if (entry.owner === user?._id || 
+        entry.owner === user?.userId || 
+        entry.owner?._id === user?._id || 
+        entry.owner?._id === user?.userId) return true;
     
     // User can view if they are a member of the group the password belongs to
     if (entry.group && entry.group.members) {
       const userMembership = entry.group.members.find(m => 
-        (m.user?._id === user?._id) || (m.user === user?._id)
+        m.user === user?._id || 
+        m.user === user?.userId || 
+        m.user?._id === user?._id || 
+        m.user?._id === user?.userId
       );
       return !!userMembership; // Return true if user is a member, regardless of role
     }
@@ -160,6 +183,9 @@ const PasswordList = ({ entries, onUpdate }) => {
 
   // Define PasswordCard component outside the return statement
   const PasswordCard = ({ entry }) => {
+    const isVisible = showPassword[entry._id] || false;
+    console.log(`PasswordCard render - Entry: ${entry._id}, Visible: ${isVisible}, ShowPassword:`, showPassword);
+
     return (
       <Card 
         sx={{ 
@@ -230,7 +256,7 @@ const PasswordList = ({ entries, onUpdate }) => {
                 p: 1
               }}
             >
-              {showPassword[entry._id] ? entry.password : '••••••••'}
+              {isVisible ? entry.password : '••••••••'}
             </Typography>
           </Box>
 
@@ -299,27 +325,21 @@ const PasswordList = ({ entries, onUpdate }) => {
           <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
             <IconButton
               size="small"
-              onClick={() => togglePasswordVisibility(entry._id)}
+              onClick={() => {
+                console.log('Toggle clicked for:', entry._id);
+                togglePasswordVisibility(entry._id);
+              }}
               color="primary"
               sx={{ 
                 p: 0.5,
                 '&:hover': {
                   bgcolor: 'primary.light',
                   color: 'primary.contrastText'
-                },
-                '&.Mui-disabled': {
-                  opacity: 0.5
                 }
               }}
               disabled={!canViewPassword(entry)}
-              title={!canViewPassword(entry) ? "You don't have permission to view this password" : 
-                     showPassword[entry._id] ? "Hide password" : "Show password"}
             >
-              {showPassword[entry._id] ? (
-                <VisibilityOffIcon fontSize="small" />
-              ) : (
-                <VisibilityIcon fontSize="small" />
-              )}
+              {isVisible ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
             </IconButton>
             <IconButton
               size="small"
