@@ -5,16 +5,23 @@ import {
   Button,
   Typography,
   Alert,
-  Paper
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { Lock as LockIcon } from '@mui/icons-material';
+import axios from 'axios';
 
-const PasswordManagerAccess = ({ onAccess }) => {
+const PasswordManagerAccess = ({ onAccess, requireSecondPassword, onSetupComplete, showSetup, onSetupCancel }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTimer, setLockoutTimer] = useState(0);
+  const [setupPassword, setSetupPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   useEffect(() => {
     // Check if there's an existing lockout
@@ -40,32 +47,98 @@ const PasswordManagerAccess = ({ onAccess }) => {
     updateTimer();
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // This is a simple example - in production, you'd want to hash this password and store it securely
-    const correctPassword = 'admin123'; // You should change this to a secure password
-    
-    if (password === correctPassword) {
-      setAttempts(0);
-      localStorage.removeItem('pmLockedUntil');
-      onAccess();
-    } else {
-      const newAttempts = attempts + 1;
-      setAttempts(newAttempts);
-      setError('Incorrect password');
-      
-      // Lock after 3 failed attempts
-      if (newAttempts >= 3) {
-        const lockoutDuration = 5 * 60 * 1000; // 5 minutes
-        const lockedUntil = Date.now() + lockoutDuration;
-        setIsLocked(true);
-        localStorage.setItem('pmLockedUntil', lockedUntil.toString());
-        startLockoutTimer(lockedUntil);
+    try {
+      const response = await axios.post('/api/passwords/second-password/verify', { password });
+      if (response.data.valid) {
+        setAttempts(0);
+        localStorage.removeItem('pmLockedUntil');
+        onAccess();
+      } else {
+        handleFailedAttempt();
       }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Verification failed');
+      handleFailedAttempt();
     }
     setPassword('');
   };
+
+  const handleFailedAttempt = () => {
+    const newAttempts = attempts + 1;
+    setAttempts(newAttempts);
+    setError('Incorrect password');
+    
+    // Lock after 3 failed attempts
+    if (newAttempts >= 3) {
+      const lockoutDuration = 5 * 60 * 1000; // 5 minutes
+      const lockedUntil = Date.now() + lockoutDuration;
+      setIsLocked(true);
+      localStorage.setItem('pmLockedUntil', lockedUntil.toString());
+      startLockoutTimer(lockedUntil);
+    }
+  };
+
+  const handleSetupSubmit = async (e) => {
+    e.preventDefault();
+    if (setupPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    try {
+      await axios.post('/api/passwords/second-password/settings', {
+        requireSecondPassword: true,
+        secondPassword: setupPassword
+      });
+      setSetupPassword('');
+      setConfirmPassword('');
+      onSetupComplete();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to set up second password');
+    }
+  };
+
+  if (!requireSecondPassword) {
+    return null;
+  }
+
+  if (showSetup) {
+    return (
+      <Dialog open={true} maxWidth="sm" fullWidth>
+        <DialogTitle>Set Up Second Password</DialogTitle>
+        <DialogContent>
+          <Box component="form" onSubmit={handleSetupSubmit} sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              type="password"
+              label="New Password"
+              value={setupPassword}
+              onChange={(e) => setSetupPassword(e.target.value)}
+              required
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              type="password"
+              label="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              margin="normal"
+            />
+            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+            <DialogActions>
+              <Button onClick={onSetupCancel}>Cancel</Button>
+              <Button type="submit" variant="contained">Save</Button>
+            </DialogActions>
+          </Box>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Box
@@ -91,28 +164,15 @@ const PasswordManagerAccess = ({ onAccess }) => {
           boxShadow: (theme) => theme.shadows[8]
         }}
       >
-        <LockIcon sx={{ fontSize: 48, color: 'primary.main', mb: 3 }} />
-        <Typography 
-          variant="h5" 
-          component="h1" 
-          sx={{ 
-            fontWeight: 'medium',
-            color: 'primary.main',
-            mb: 1 
-          }}
-        >
-          Password Manager Access
-        </Typography>
-        <Typography 
-          variant="body2" 
-          color="text.secondary" 
-          sx={{ 
-            mb: 3,
-            textAlign: 'center'
-          }}
-        >
-          Enter your password to access the password manager
-        </Typography>
+        <Box sx={{ textAlign: 'center', mb: 3 }}>
+          <LockIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+          <Typography variant="h5" sx={{ mt: 2 }}>
+            Password Manager Access
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This is an additional security layer that you've enabled. You can disable it using the toggle switch after logging in.
+          </Typography>
+        </Box>
         
         {error && (
           <Alert 

@@ -37,6 +37,14 @@ const userSchema = new mongoose.Schema({
   isAdmin: {
     type: Boolean,
     default: false
+  },
+  requireSecondPassword: {
+    type: Boolean,
+    default: false
+  },
+  secondPassword: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true

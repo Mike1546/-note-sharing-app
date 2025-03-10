@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const PasswordEntry = require('../models/PasswordEntry');
 const PasswordGroup = require('../models/PasswordGroup');
 const User = require('../models/User');
+const bcrypt = require('bcrypt');
 
 // Create a password entry
 router.post('/entries',
@@ -337,5 +338,58 @@ async function getGroupIds(userId) {
   });
   return groups.map(g => g._id);
 }
+
+router.post('/second-password/settings', auth, async (req, res) => {
+  try {
+    const { requireSecondPassword, secondPassword } = req.body;
+    const user = await User.findById(req.user.userId);
+
+    if (requireSecondPassword && !secondPassword) {
+      return res.status(400).json({ message: 'Second password is required when enabling' });
+    }
+
+    user.requireSecondPassword = requireSecondPassword;
+    if (secondPassword) {
+      const salt = await bcrypt.genSalt(10);
+      user.secondPassword = await bcrypt.hash(secondPassword, salt);
+    }
+
+    await user.save();
+    res.json({ requireSecondPassword: user.requireSecondPassword });
+  } catch (error) {
+    console.error('Error updating second password settings:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/second-password/verify', auth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    const user = await User.findById(req.user.userId);
+
+    if (!user.requireSecondPassword) {
+      return res.json({ valid: true });
+    }
+
+    if (!user.secondPassword) {
+      return res.status(400).json({ message: 'Second password not set' });
+    }
+
+    const isValid = await bcrypt.compare(password, user.secondPassword);
+    res.json({ valid: isValid });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get second password settings
+router.get('/second-password/settings', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    res.json({ requireSecondPassword: user.requireSecondPassword || false });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router; 
