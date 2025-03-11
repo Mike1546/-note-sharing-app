@@ -130,11 +130,12 @@ const NoteGroupList = ({ groups, onUpdate }) => {
                   <Box sx={{ mt: 1 }} component="span">
                     {group.members.map((member) => (
                       <Chip
-                        key={member._id}
-                        label={member.name}
+                        key={member.user._id}
+                        label={`${member.user.name}${member.role === 'admin' ? ' (admin)' : ''}`}
                         size="small"
+                        color={member.role === 'admin' ? 'primary' : 'default'}
                         sx={{ mr: 0.5, mb: 0.5 }}
-                        onDelete={() => handleRemoveMember(group._id, member._id)}
+                        onDelete={() => handleRemoveMember(group._id, member.user._id)}
                         deleteIcon={<PersonRemoveIcon />}
                       />
                     ))}

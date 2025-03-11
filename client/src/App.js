@@ -14,6 +14,7 @@ import NoteEditor from './components/notes/NoteEditor';
 import Layout from './components/layout/Layout';
 import AdminPortal from './components/admin/AdminPortal';
 import PasswordManager from './components/passwords/PasswordManager';
+import Calendar from './components/calendar/Calendar';
 
 const AppContent = () => {
   const { darkMode } = useTheme();
@@ -66,6 +67,16 @@ const AppContent = () => {
                   <PrivateRoute>
                     <Layout>
                       <PasswordManager />
+                    </Layout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/calendar"
+                element={
+                  <PrivateRoute>
+                    <Layout>
+                      <Calendar />
                     </Layout>
                   </PrivateRoute>
                 }

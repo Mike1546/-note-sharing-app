@@ -34,7 +34,8 @@ import {
   AdminPanelSettings as AdminIcon,
   ArrowBack as ArrowBackIcon,
   Brightness4 as DarkModeIcon,
-  Brightness7 as LightModeIcon
+  Brightness7 as LightModeIcon,
+  Event as CalendarIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -123,6 +124,12 @@ const Layout = ({ children }) => {
             <NoteAddIcon />
           </ListItemIcon>
           <ListItemText primary="New Note" />
+        </ListItem>
+        <ListItem button onClick={() => navigate('/calendar')}>
+          <ListItemIcon>
+            <CalendarIcon />
+          </ListItemIcon>
+          <ListItemText primary="Calendar" />
         </ListItem>
         <ListItem button onClick={() => navigate('/passwords')}>
           <ListItemIcon>
