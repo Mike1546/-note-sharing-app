@@ -13,8 +13,9 @@ const { errorHandler } = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth');
 const notesRoutes = require('./routes/notes');
 const adminRoutes = require('./routes/admin');
-const passwordRoutes = require('./routes/passwords');
+const passwordRoutes = require('./routes/passwordRoutes');
 const reminderRoutes = require('./routes/reminders');
+const groupRoutes = require('./routes/groups');
 
 dotenv.config();
 
@@ -26,6 +27,9 @@ const io = socketIo(server, {
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });
+
+// Trust proxy - required for rate limiting behind reverse proxy
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors({
@@ -47,24 +51,59 @@ app.use(express.json({
   }
 }));
 
+// Add middleware to ensure consistent JSON content-type
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
 // Error handling for JSON parsing
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     console.error('JSON Parse Error:', err);
-    return res.status(400).json({ message: 'Invalid JSON format' });
+    return res.status(400).json({ msg: 'Invalid JSON format' });
   }
-  next();
+  next(err);
 });
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false // Disable CSP for development
+}));
 
 // Rate limiting
-const limiter = rateLimit({
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 2000, // increased from 1000 to 2000 requests per windowMs
+  message: {
+    msg: 'Too many requests, please try again later'
+  }
 });
-app.use('/api/', limiter);
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // increased from 50 to 100 requests
+  message: {
+    msg: 'Too many authentication attempts, please try again later'
+  }
+});
+
+// Separate limiter for auth checks (e.g. /auth/me endpoint)
+const authCheckLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 60, // allow 60 requests per minute for auth checks
+  message: {
+    msg: 'Too many authentication checks, please try again later'
+  }
+});
+
+// Apply rate limiting to specific routes
+app.use('/api/auth/me', authCheckLimiter); // Separate limit for auth checks
+app.use('/api/auth', authLimiter);
+app.use('/api/notes', apiLimiter);
+app.use('/api/passwords', apiLimiter);
+app.use('/api/reminders', apiLimiter);
+app.use('/api/groups', apiLimiter);
 
 // Compress responses
 app.use(compression());
@@ -114,16 +153,24 @@ app.use('/api/notes', notesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/passwords', passwordRoutes);
 app.use('/api/reminders', reminderRoutes);
+app.use('/api/groups', groupRoutes);
 
 // 404 handler
 app.use((req, res, next) => {
-  const error = new Error('Not Found');
-  error.statusCode = 404;
-  next(error);
+  res.status(404).json({ msg: 'Route not found' });
 });
 
-// Error handling
-app.use(errorHandler);
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Global error:', err);
+  
+  // Don't leak stack traces in production
+  const error = process.env.NODE_ENV === 'production' 
+    ? { msg: 'Internal server error' }
+    : { msg: err.message, stack: err.stack };
+  
+  res.status(err.status || 500).json(error);
+});
 
 const PORT = process.env.PORT || 5000;
 

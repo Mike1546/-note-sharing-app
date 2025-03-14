@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const CryptoJS = require('crypto-js');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 const passwordEntrySchema = new mongoose.Schema({
   title: {
@@ -57,18 +57,13 @@ const passwordEntrySchema = new mongoose.Schema({
 // Encrypt sensitive data before saving
 passwordEntrySchema.pre('save', async function(next) {
   if (this.isModified('password') || this.isModified('username')) {
-    const encryptionKey = process.env.ENCRYPTION_KEY;
-    if (!encryptionKey) {
-      throw new Error('Encryption key not found in environment variables');
-    }
-    
     try {
       if (this.isModified('password')) {
-        this.password = CryptoJS.AES.encrypt(this.password, encryptionKey).toString();
+        this.password = encrypt(this.password);
       }
       
       if (this.isModified('username')) {
-        this.username = CryptoJS.AES.encrypt(this.username, encryptionKey).toString();
+        this.username = encrypt(this.username);
       }
     } catch (error) {
       console.error('Encryption error:', error);
@@ -82,30 +77,15 @@ passwordEntrySchema.pre('save', async function(next) {
 
 // Method to decrypt sensitive data
 passwordEntrySchema.methods.decryptData = function() {
-  const encryptionKey = process.env.ENCRYPTION_KEY;
-  if (!encryptionKey) {
-    throw new Error('Encryption key not found in environment variables');
-  }
-
   const decryptedEntry = this.toObject();
   
   try {
     if (this.password) {
-      const passwordBytes = CryptoJS.AES.decrypt(this.password, encryptionKey);
-      const decryptedPassword = passwordBytes.toString(CryptoJS.enc.Utf8);
-      if (!decryptedPassword) {
-        throw new Error('Failed to decrypt password');
-      }
-      decryptedEntry.password = decryptedPassword;
+      decryptedEntry.password = decrypt(this.password);
     }
     
     if (this.username) {
-      const usernameBytes = CryptoJS.AES.decrypt(this.username, encryptionKey);
-      const decryptedUsername = usernameBytes.toString(CryptoJS.enc.Utf8);
-      if (!decryptedUsername) {
-        throw new Error('Failed to decrypt username');
-      }
-      decryptedEntry.username = decryptedUsername;
+      decryptedEntry.username = decrypt(this.username);
     }
   } catch (error) {
     console.error('Decryption error:', error);

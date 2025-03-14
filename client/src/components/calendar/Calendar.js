@@ -54,17 +54,15 @@ const Calendar = () => {
 
   useEffect(() => {
     getDayReminders(selectedDate);
-  }, []);
+  }, [selectedDate]);
 
   const getDayReminders = async (date) => {
     try {
-      const response = await axios.get('/api/reminders');
-      const dayReminders = response.data.filter(reminder =>
-        dayjs(reminder.date).isSame(date, 'day')
-      );
-      setReminders(dayReminders);
+      const response = await axios.get(`/api/reminders?date=${date.format('YYYY-MM-DD')}`);
+      setReminders(response.data);
     } catch (error) {
       console.error('Error fetching reminders:', error);
+      setError('Failed to fetch reminders');
     }
   };
 

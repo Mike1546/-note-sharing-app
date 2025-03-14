@@ -24,7 +24,6 @@ import {
   MenuItem
 } from '@mui/material';
 import {
-  Lock as LockIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Share as ShareIcon,
@@ -33,6 +32,9 @@ import {
 import axios from 'axios';
 import NoteGroupList from './notes/NoteGroupList';
 import NoteGroupForm from './notes/NoteGroupForm';
+
+// Add delay helper
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -50,63 +52,52 @@ const Dashboard = () => {
   const [selectedGroup, setSelectedGroup] = useState(null);
 
   useEffect(() => {
-    fetchNotes();
-    fetchGroups();
-  }, []);
-
-  useEffect(() => {
-    if (groups.length > 0) {
-      fetchGroupNotes();
-    }
-  }, [groups]);
-
-  const fetchGroupNotes = async () => {
-    const notesMap = {};
-    for (const group of groups) {
-      try {
-        const response = await axios.get(`/api/notes/group/${group._id}`);
-        notesMap[group._id] = response.data;
-      } catch (error) {
-        console.error(`Error fetching notes for group ${group._id}:`, error);
+    const fetchWithRetry = async (url, retries = 3, baseDelay = 1000) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const response = await axios.get(url);
+          return response;
+        } catch (error) {
+          if (i === retries - 1) throw error;
+          const waitTime = baseDelay * Math.pow(2, i);
+          await delay(waitTime);
+        }
       }
-    }
-    setGroupNotes(notesMap);
-  };
+    };
 
-  const fetchNotes = async () => {
-    try {
-      const response = await axios.get('/api/notes');
-      setNotes(response.data);
-    } catch (error) {
-      console.error('Error fetching notes:', error);
-      setError('Failed to fetch notes');
-    }
-  };
+    const fetchData = async () => {
+      try {
+        // Fetch notes and groups sequentially to avoid rate limits
+        const notesResponse = await fetchWithRetry('/api/notes');
+        await delay(1000); // Wait 1 second between requests
+        const groupsResponse = await fetchWithRetry('/api/notes/groups');
+        
+        setNotes(notesResponse.data);
+        setGroups(groupsResponse.data);
+        
+        // Fetch group notes with delays
+        if (groupsResponse.data.length > 0) {
+          const groupNotesMap = {};
+          for (const group of groupsResponse.data) {
+            try {
+              await delay(1000); // Wait 1 second between requests
+              const response = await fetchWithRetry(`/api/notes/group/${group._id}`);
+              groupNotesMap[group._id] = response.data;
+            } catch (error) {
+              console.error(`Error fetching notes for group ${group._id}:`, error);
+              groupNotesMap[group._id] = [];
+            }
+          }
+          setGroupNotes(groupNotesMap);
+        }
+      } catch (error) {
+        setError('Failed to fetch data');
+        console.error('Error fetching data:', error);
+      }
+    };
 
-  const fetchGroups = async () => {
-    try {
-      console.log('Fetching groups - Auth token:', localStorage.getItem('token'));
-      console.log('Fetching groups - Axios defaults:', {
-        baseURL: axios.defaults.baseURL,
-        headers: axios.defaults.headers.common
-      });
-
-      const response = await axios.get('/api/notes/groups');
-      console.log('Groups response:', response.data);
-      setGroups(response.data);
-    } catch (error) {
-      console.error('Error fetching groups:', error.response || error);
-      console.error('Full error object:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        headers: error.response?.headers,
-        config: error.config,
-        message: error.message
-      });
-      setError('Failed to fetch groups');
-    }
-  };
+    fetchData();
+  }, []); // Single useEffect for all data fetching
 
   const handleEditNote = (noteId) => {
     navigate(`/notes/${noteId}`);
@@ -114,9 +105,17 @@ const Dashboard = () => {
 
   const handleDeleteNote = async (noteId) => {
     try {
-      await axios.delete(`/api/notes/${noteId}`);
-      setNotes(notes.filter(note => note._id !== noteId));
-      setSuccess('Note deleted successfully');
+      for (let i = 0; i < 3; i++) {
+        try {
+          await axios.delete(`/api/notes/${noteId}`);
+          setNotes(notes.filter(note => note._id !== noteId));
+          setSuccess('Note deleted successfully');
+          return;
+        } catch (error) {
+          if (i === 2) throw error;
+          await delay(1000 * Math.pow(2, i));
+        }
+      }
     } catch (error) {
       console.error('Error deleting note:', error);
       setError('Failed to delete note');
@@ -130,13 +129,21 @@ const Dashboard = () => {
 
   const handleShareSubmit = async () => {
     try {
-      await axios.post(`/api/notes/${selectedNote._id}/share`, {
-        email: shareEmail,
-        permission: sharePermission
-      });
-      setShareDialogOpen(false);
-      setShareEmail('');
-      setSuccess('Note shared successfully');
+      for (let i = 0; i < 3; i++) {
+        try {
+          await axios.post(`/api/notes/${selectedNote._id}/share`, {
+            email: shareEmail,
+            permission: sharePermission
+          });
+          setShareDialogOpen(false);
+          setShareEmail('');
+          setSuccess('Note shared successfully');
+          return;
+        } catch (error) {
+          if (i === 2) throw error;
+          await delay(1000 * Math.pow(2, i));
+        }
+      }
     } catch (error) {
       console.error('Error sharing note:', error);
       setError('Failed to share note');
@@ -261,7 +268,7 @@ const Dashboard = () => {
               Create Group
             </Button>
           </Box>
-          <NoteGroupList groups={groups} onUpdate={fetchGroups} />
+          <NoteGroupList groups={groups} onUpdate={setGroups} />
         </>
       )}
 

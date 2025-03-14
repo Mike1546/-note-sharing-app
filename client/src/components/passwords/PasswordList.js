@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import PasswordEntryForm from './PasswordEntryForm';
 import { useAuth } from '../../contexts/AuthContext';
+import axios from 'axios';
 
 const PasswordList = ({ entries, onUpdate }) => {
   const { user } = useAuth();
@@ -51,25 +52,20 @@ const PasswordList = ({ entries, onUpdate }) => {
 
   const handleDelete = async (entryId) => {
     try {
-      const response = await fetch(`/api/passwords/entries/${entryId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      console.log('Deleting password entry:', entryId);
+      const response = await axios.delete(`/api/passwords/entries/${entryId}`);
       
-      if (response.ok) {
-        onUpdate();
-        setSuccess('Password entry deleted successfully');
-      } else {
-        const data = await response.json();
-        setError(data.message || 'Failed to delete password entry');
-        console.error('Delete error:', data);
-      }
+      console.log('Delete response:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      });
+
+      onUpdate();
+      setSuccess('Password entry deleted successfully');
     } catch (err) {
-      console.error('Delete error:', err);
-      setError('Failed to delete password entry. Please try again.');
+      console.error('Delete error:', err.response || err);
+      setError(err.response?.data?.msg || err.response?.data?.message || 'Failed to delete password entry');
     }
   };
 
