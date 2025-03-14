@@ -17,9 +17,16 @@ const noteGroupSchema = new mongoose.Schema({
     index: true
   },
   members: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ['member', 'admin'],
+      default: 'member'
+    }
   }],
   createdAt: {
     type: Date,
@@ -29,12 +36,12 @@ const noteGroupSchema = new mongoose.Schema({
 
 // Add indexes for better query performance
 noteGroupSchema.index({ owner: 1 });
-noteGroupSchema.index({ members: 1 });
+noteGroupSchema.index({ 'members.user': 1 });
 
 // Add a method to check if a user is a member
 noteGroupSchema.methods.isMember = function(userId) {
-  return this.members.some(memberId => 
-    memberId.toString() === userId.toString()
+  return this.members.some(member => 
+    member.user.toString() === userId.toString()
   );
 };
 

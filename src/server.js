@@ -4,12 +4,17 @@ const mongoose = require('mongoose');
 const http = require('http');
 const socketIo = require('socket.io');
 const dotenv = require('dotenv');
+const compression = require('compression');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { errorHandler } = require('./middleware/errorHandler');
 
 // Routes
 const authRoutes = require('./routes/auth');
 const notesRoutes = require('./routes/notes');
 const adminRoutes = require('./routes/admin');
 const passwordRoutes = require('./routes/passwords');
+const reminderRoutes = require('./routes/reminders');
 
 dotenv.config();
 
@@ -50,6 +55,19 @@ app.use((err, req, res, next) => {
   }
   next();
 });
+
+// Security middleware
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use('/api/', limiter);
+
+// Compress responses
+app.use(compression());
 
 // Database connection with retry logic
 const connectDB = async (retries = 5) => {
@@ -95,15 +113,17 @@ app.use('/api/auth', authRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/passwords', passwordRoutes);
+app.use('/api/reminders', reminderRoutes);
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Global error handler:', err);
-  res.status(500).json({ 
-    message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
+// 404 handler
+app.use((req, res, next) => {
+  const error = new Error('Not Found');
+  error.statusCode = 404;
+  next(error);
 });
+
+// Error handling
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 

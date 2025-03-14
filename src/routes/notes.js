@@ -17,15 +17,46 @@ router.post('/groups', auth, async (req, res) => {
       return res.status(400).json({ message: 'Group name is required' });
     }
 
+    // Get the user data for the owner
+    const owner = await User.findById(req.user.userId).select('name email');
+    if (!owner) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     const group = new NoteGroup({
       name,
       description,
-      owner: req.user.userId,
-      members: [req.user.userId]
+      owner: owner._id,
+      members: [{
+        user: owner._id,
+        role: 'admin'
+      }]
     });
 
     await group.save();
-    res.status(201).json(group);
+    
+    // Populate the response with full user data
+    const populatedGroup = await NoteGroup.findById(group._id)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email')
+      .lean();
+
+    // Transform the members array to match frontend expectations
+    if (populatedGroup.members) {
+      populatedGroup.members = populatedGroup.members
+        .filter(member => member && member.user)
+        .map(member => ({
+          user: {
+            _id: member.user._id,
+            name: member.user.name,
+            email: member.user.email
+          },
+          role: member.role || 'member'
+        }));
+    }
+      
+    console.log('Created group with populated data:', JSON.stringify(populatedGroup, null, 2));
+    res.status(201).json(populatedGroup);
   } catch (error) {
     console.error('Error creating note group:', error);
     res.status(500).json({ message: 'Server error' });
@@ -35,7 +66,6 @@ router.post('/groups', auth, async (req, res) => {
 // Get all note groups for the user
 router.get('/groups', auth, async (req, res) => {
   try {
-    // Check MongoDB connection state
     if (mongoose.connection.readyState !== 1) {
       console.error('MongoDB not connected. Current state:', mongoose.connection.readyState);
       return res.status(500).json({ 
@@ -44,91 +74,47 @@ router.get('/groups', auth, async (req, res) => {
       });
     }
 
-    console.log('GET /groups - Headers:', req.headers);
-    console.log('GET /groups - Auth token:', req.header('Authorization'));
-    console.log('GET /groups - MongoDB connection state:', mongoose.connection.readyState);
-
-    console.log('GET /groups - User object:', {
-      userId: req.user.userId,
-      name: req.user.name,
-      email: req.user.email,
-      type: typeof req.user.userId,
-      isObjectId: req.user.userId instanceof mongoose.Types.ObjectId
-    });
-
-    let userId;
-    try {
-      // Ensure userId is a valid ObjectId
-      userId = mongoose.Types.ObjectId.isValid(req.user.userId) 
-        ? req.user.userId 
-        : new mongoose.Types.ObjectId(req.user.userId);
-    } catch (err) {
-      console.error('Error converting userId to ObjectId:', err);
-      return res.status(400).json({ 
-        message: 'Invalid user ID format',
-        error: err.message
-      });
+    let userId = req.user.userId;
+    if (typeof userId === 'string') {
+      userId = new mongoose.Types.ObjectId(userId);
     }
 
-    const query = {
+    // First find all groups where the user is either owner or member
+    const groups = await NoteGroup.find({
       $or: [
         { owner: userId },
-        { members: userId }
+        { 'members.user': userId }
       ]
-    };
+    })
+    .populate('owner', 'name email')
+    .populate('members.user', 'name email')
+    .lean();
 
-    console.log('GET /groups - Query:', JSON.stringify(query));
+    // Transform the members array in each group to match frontend expectations
+    const transformedGroups = groups.map(group => {
+      // Ensure members is an array and has valid user data
+      const validMembers = Array.isArray(group.members) ? group.members
+        .filter(member => member && member.user)
+        .map(member => ({
+          user: {
+            _id: member.user._id,
+            name: member.user.name,
+            email: member.user.email
+          },
+          role: member.role || 'member'
+        })) : [];
 
-    const groups = await NoteGroup.find(query)
-      .populate('members', 'name email')
-      .populate('owner', 'name email')
-      .lean()
-      .exec();
-    
-    if (!groups) {
-      console.log('GET /groups - No groups found');
-      return res.json([]);
-    }
+      return {
+        ...group,
+        members: validMembers
+      };
+    });
 
-    console.log('GET /groups - Raw query result:', JSON.stringify(groups));
-
-    const processedGroups = groups.map(g => ({
-      ...g,
-      id: g._id.toString(),
-      owner: typeof g.owner === 'object' ? {
-        id: g.owner._id.toString(),
-        name: g.owner.name,
-        email: g.owner.email
-      } : g.owner.toString(),
-      members: Array.isArray(g.members) ? g.members.map(m => ({
-        id: m._id.toString(),
-        name: m.name,
-        email: m.email
-      })) : []
-    }));
-
-    console.log('GET /groups - Processed groups:', JSON.stringify(processedGroups));
-
-    res.json(processedGroups);
+    console.log('Fetched groups with populated data:', JSON.stringify(transformedGroups, null, 2));
+    res.json(transformedGroups);
   } catch (error) {
     console.error('Error fetching note groups:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      query: error.query,
-      code: error.code,
-      userId: req.user?.userId,
-      mongoState: mongoose.connection.readyState
-    });
-    res.status(500).json({ 
-      message: 'Server error',
-      error: error.message,
-      details: {
-        userId: req.user?.userId,
-        code: error.code,
-        mongoState: mongoose.connection.readyState
-      }
-    });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -138,13 +124,39 @@ router.get('/group/:groupId', auth, async (req, res) => {
     const { groupId } = req.params;
     
     // Verify the group exists and user has access
-    const group = await NoteGroup.findById(groupId);
+    const group = await NoteGroup.findById(groupId)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email')
+      .lean();
+
     if (!group) {
       return res.status(404).json({ message: 'Group not found' });
     }
+
+    // Transform the members array to match frontend expectations
+    group.members = Array.isArray(group.members) ? group.members
+      .filter(member => member && member.user)
+      .map(member => ({
+        user: {
+          _id: member.user._id,
+          name: member.user.name,
+          email: member.user.email
+        },
+        role: member.role || 'member'
+      })) : [];
+
+    console.log('Group data:', JSON.stringify(group, null, 2));
     
     // Check if user is a member or owner of the group
-    if (!group.members.includes(req.user.userId) && group.owner.toString() !== req.user.userId.toString()) {
+    const isMember = group.members.some(member => {
+      if (!member.user || !member.user._id) {
+        console.log('Invalid member data:', member);
+        return false;
+      }
+      return member.user._id.toString() === req.user.userId.toString();
+    });
+    
+    if (!isMember && group.owner._id.toString() !== req.user.userId.toString()) {
       return res.status(403).json({ message: 'Not authorized to view notes in this group' });
     }
 
@@ -185,13 +197,15 @@ router.get('/group/:groupId', auth, async (req, res) => {
 router.post('/groups/:groupId/members', auth, async (req, res) => {
   try {
     const { email } = req.body;
-    const group = await NoteGroup.findById(req.params.groupId);
+    const group = await NoteGroup.findById(req.params.groupId)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email');
 
     if (!group) {
       return res.status(404).json({ message: 'Group not found' });
     }
 
-    if (group.owner.toString() !== req.user.userId.toString()) {
+    if (group.owner._id.toString() !== req.user.userId.toString()) {
       return res.status(403).json({ message: 'Not authorized to add members' });
     }
 
@@ -200,14 +214,23 @@ router.post('/groups/:groupId/members', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (group.members.includes(user._id)) {
+    if (group.members.some(member => member.user._id.toString() === user._id.toString())) {
       return res.status(400).json({ message: 'User is already a member' });
     }
 
-    group.members.push(user._id);
-    await group.save();
+    group.members.push({
+      user: user._id,
+      role: 'member'
+    });
 
-    res.json(group);
+    await group.save();
+    
+    // Populate the response
+    const updatedGroup = await NoteGroup.findById(group._id)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email');
+      
+    res.json(updatedGroup);
   } catch (error) {
     console.error('Error adding member to group:', error);
     res.status(500).json({ message: 'Server error' });
@@ -217,22 +240,30 @@ router.post('/groups/:groupId/members', auth, async (req, res) => {
 // Remove a member from a note group
 router.delete('/groups/:groupId/members/:memberId', auth, async (req, res) => {
   try {
-    const group = await NoteGroup.findById(req.params.groupId);
+    const group = await NoteGroup.findById(req.params.groupId)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email');
 
     if (!group) {
       return res.status(404).json({ message: 'Group not found' });
     }
 
-    if (group.owner.toString() !== req.user.userId.toString()) {
+    if (group.owner._id.toString() !== req.user.userId.toString()) {
       return res.status(403).json({ message: 'Not authorized to remove members' });
     }
 
     group.members = group.members.filter(
-      member => member.toString() !== req.params.memberId
+      member => member.user._id.toString() !== req.params.memberId
     );
 
     await group.save();
-    res.json(group);
+    
+    // Populate the response
+    const updatedGroup = await NoteGroup.findById(group._id)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email');
+      
+    res.json(updatedGroup);
   } catch (error) {
     console.error('Error removing member from group:', error);
     res.status(500).json({ message: 'Server error' });
@@ -297,11 +328,19 @@ router.post('/',
 
       // If groupId is provided, verify user has access to the group
       if (groupId) {
-        const group = await NoteGroup.findById(groupId);
+        const group = await NoteGroup.findById(groupId)
+          .populate('owner', 'name email')
+          .populate('members.user', 'name email');
+          
         if (!group) {
           return res.status(404).json({ message: 'Group not found' });
         }
-        if (!group.members.includes(req.user.userId) && group.owner.toString() !== req.user.userId.toString()) {
+
+        const isMember = group.members.some(member => 
+          member.user._id.toString() === req.user.userId.toString()
+        );
+        
+        if (!isMember && group.owner._id.toString() !== req.user.userId.toString()) {
           return res.status(403).json({ message: 'Not authorized to add notes to this group' });
         }
       }
@@ -558,6 +597,55 @@ router.delete('/:id', auth, async (req, res) => {
   } catch (err) {
     console.error('Error deleting note:', err);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Migration route to fix member structure
+router.post('/migrate-groups', auth, async (req, res) => {
+  try {
+    // Only allow admin to run migration
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.isAdmin) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const groups = await NoteGroup.find({});
+    let updatedCount = 0;
+
+    for (const group of groups) {
+      // Check if members need to be fixed
+      const needsFix = group.members.some(member => 
+        typeof member === 'string' || !member.user || !member.role
+      );
+
+      if (needsFix) {
+        // Get unique member IDs
+        const memberIds = [...new Set(
+          group.members
+            .map(member => typeof member === 'string' ? member : member.user?.toString())
+            .filter(Boolean)
+        )];
+
+        // Create proper member objects
+        const fixedMembers = memberIds.map(userId => ({
+          user: userId,
+          role: userId.toString() === group.owner.toString() ? 'admin' : 'member'
+        }));
+
+        // Update the group
+        group.members = fixedMembers;
+        await group.save();
+        updatedCount++;
+      }
+    }
+
+    res.json({ 
+      message: `Migration complete. Updated ${updatedCount} groups.`,
+      totalGroups: groups.length
+    });
+  } catch (error) {
+    console.error('Error during migration:', error);
+    res.status(500).json({ message: 'Server error during migration' });
   }
 });
 
