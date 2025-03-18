@@ -6,6 +6,26 @@ const User = require('../models/User');
 const auth = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 const LoginLog = require('../models/LoginLog');
+const rateLimit = require('express-rate-limit');
+
+// Rate limiter for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { message: 'Too many requests, please try again later' }
+});
+
+// More lenient rate limiter for auth check endpoint
+const authCheckLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // limit each IP to 30 requests per minute
+  message: { message: 'Too many auth checks, please try again later' }
+});
+
+// Apply rate limiter to auth endpoints
+router.use('/login', authLimiter);
+router.use('/register', authLimiter);
+router.use('/me', authCheckLimiter);
 
 // Register a new user
 router.post('/register',
@@ -23,15 +43,15 @@ router.post('/register',
 
       const { email, password, name } = req.body;
 
-      // Check if user already exists
-      let user = await User.findOne({ email });
+      // Check if user already exists (case-insensitive)
+      let user = await User.findOne({ email: { $regex: new RegExp('^' + email.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '$', 'i') } });
       if (user) {
         return res.status(400).json({ message: 'User already exists' });
       }
 
       // Create new user
       user = new User({
-        email,
+        email: email.toLowerCase(), // Store email in lowercase
         password,
         name
       });
@@ -45,7 +65,7 @@ router.post('/register',
           isAdmin: user.isAdmin 
         },
         process.env.JWT_SECRET || 'your-secret-key',
-        { expiresIn: '24h' }
+        { expiresIn: '7d' }
       );
 
       res.status(201).json({
@@ -67,48 +87,53 @@ router.post('/register',
 // Login user
 router.post('/login',
   [
-    body('email').isEmail().normalizeEmail(),
+    body('email').isEmail().normalizeEmail().toLowerCase(),
     body('password').exists()
   ],
   async (req, res) => {
     try {
-      console.log('Login attempt - Email:', req.body.email);
       const { email, password } = req.body;
-
-      // Find user by email
-      const user = await User.findOne({ email });
       const ipAddress = req.ip || req.connection.remoteAddress;
       const userAgent = req.headers['user-agent'];
 
-      console.log('Login - Found user:', user ? user._id : 'No user found');
+      // Create login log entry
+      const createLoginLog = async (success, userId = null, userName = 'Unknown', userEmail = email) => {
+        try {
+          const logData = {
+            userName,
+            userEmail,
+            ipAddress,
+            userAgent,
+            success
+          };
+          
+          // Only add userId if it's not null
+          if (userId) {
+            logData.userId = userId;
+          }
+
+          await LoginLog.create(logData);
+        } catch (error) {
+          console.error('Error creating login log:', error);
+          // Don't throw the error as login logs are not critical
+        }
+      };
+
+      // Find user by email (case-insensitive)
+      const user = await User.findOne({ 
+        email: { $regex: new RegExp('^' + email.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '$', 'i') }
+      });
 
       if (!user) {
-        console.log('Login - User not found:', email);
-        await LoginLog.create({
-          userId: null,
-          userName: 'Unknown',
-          userEmail: email,
-          ipAddress,
-          userAgent,
-          success: false
-        });
+        await createLoginLog(false, null, 'Unknown', email);
         return res.status(400).json({ message: 'Invalid credentials' });
       }
 
-      // Check password
-      const isMatch = await bcrypt.compare(password, user.password);
-      console.log('Login - Password match:', isMatch);
+      // Check password using the model's method
+      const isMatch = await user.comparePassword(password);
 
       if (!isMatch) {
-        console.log('Login - Invalid password for user:', email);
-        await LoginLog.create({
-          userId: user._id,
-          userName: user.name,
-          userEmail: user.email,
-          ipAddress,
-          userAgent,
-          success: false
-        });
+        await createLoginLog(false, user._id, user.name, user.email);
         return res.status(400).json({ message: 'Invalid credentials' });
       }
 
@@ -119,21 +144,11 @@ router.post('/login',
           isAdmin: user.isAdmin 
         },
         process.env.JWT_SECRET || 'your-secret-key',
-        { expiresIn: '24h' }
+        { expiresIn: '7d' }
       );
 
-      console.log('Login - Generated token for user:', user._id);
-
-      // Create login log
-      const loginLog = new LoginLog({
-        userId: user._id,
-        userName: user.name,
-        userEmail: user.email,
-        ipAddress,
-        userAgent,
-        success: true
-      });
-      await loginLog.save();
+      // Log successful login
+      await createLoginLog(true, user._id, user.name, user.email);
 
       res.json({
         token,

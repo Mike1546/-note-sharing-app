@@ -118,12 +118,13 @@ router.put('/users/:userId/password', auth, isAdmin, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
+    // Let the User model's pre-save hook handle the hashing
+    user.password = newPassword;
     await user.save();
 
     res.json({ message: 'Password updated successfully' });
   } catch (err) {
+    console.error('Password change error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

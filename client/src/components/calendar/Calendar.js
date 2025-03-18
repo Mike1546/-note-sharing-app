@@ -58,8 +58,12 @@ const Calendar = () => {
 
   const getDayReminders = async (date) => {
     try {
-      const response = await axios.get(`/api/reminders?date=${date.format('YYYY-MM-DD')}`);
-      setReminders(response.data);
+      const formattedDate = date.format('YYYY-MM-DD');
+      const response = await axios.get(`/api/reminders?date=${formattedDate}`);
+      const filteredReminders = response.data.filter(reminder => 
+        dayjs(reminder.date).format('YYYY-MM-DD') === formattedDate
+      );
+      setReminders(filteredReminders);
     } catch (error) {
       console.error('Error fetching reminders:', error);
       setError('Failed to fetch reminders');

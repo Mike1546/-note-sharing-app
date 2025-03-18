@@ -2,19 +2,47 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import axios from 'axios';
 
 // Configure axios defaults
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+axios.defaults.baseURL = isLocalhost ? 'http://localhost:5000' : 'http://100.127.255.204:5000';
 axios.defaults.headers.post['Content-Type'] = 'application/json';
 
 // Flag to prevent redirect loops
 let isRedirecting = false;
 let lastAuthCheck = 0;
-const AUTH_CHECK_INTERVAL = 5000; // 5 seconds
+const AUTH_CHECK_INTERVAL = 300000; // 5 minutes
 
 // Add request interceptor to add token to all requests
 axios.interceptors.request.use(
   (config) => {
+    // Skip auth check for auth endpoints to prevent loops
+    if (config.url.includes('/api/auth/')) {
+      return config;
+    }
+
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      
+      // Check token expiration
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const expiry = payload.exp * 1000; // Convert to milliseconds
+        if (expiry < Date.now()) {
+          localStorage.removeItem('token');
+          if (!isRedirecting && !window.location.pathname.includes('/login')) {
+            isRedirecting = true;
+            window.location.href = '/login';
+          }
+          return Promise.reject('Token expired');
+        }
+      } catch (err) {
+        console.error('Error checking token:', err);
+        localStorage.removeItem('token');
+        if (!isRedirecting && !window.location.pathname.includes('/login')) {
+          isRedirecting = true;
+          window.location.href = '/login';
+        }
+      }
     }
     return config;
   },
@@ -27,16 +55,21 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !isRedirecting) {
+    // Only redirect on 401 errors that are not from auth endpoints
+    if (error.response?.status === 401 && 
+        !error.config.url.includes('/api/auth/') && 
+        !isRedirecting) {
       const now = Date.now();
       if (now - lastAuthCheck > AUTH_CHECK_INTERVAL) {
         isRedirecting = true;
         lastAuthCheck = now;
         localStorage.removeItem('token');
-        setTimeout(() => {
-          window.location.href = '/login';
-          isRedirecting = false;
-        }, 100);
+        if (!window.location.pathname.includes('/login')) {
+          setTimeout(() => {
+            window.location.href = '/login';
+            isRedirecting = false;
+          }, 100);
+        }
       }
     }
     return Promise.reject(error);
@@ -62,12 +95,32 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      // Check token expiration before making the request
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const expiry = payload.exp * 1000; // Convert to milliseconds
+        if (expiry < Date.now()) {
+          localStorage.removeItem('token');
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Error checking token:', err);
+        localStorage.removeItem('token');
+        setUser(null);
         setLoading(false);
         return;
       }
 
       const now = Date.now();
-      if (now - lastAuthCheck < AUTH_CHECK_INTERVAL) {
+      if (now - lastAuthCheck < AUTH_CHECK_INTERVAL && user) {
+        setLoading(false);
         return;
       }
 
@@ -76,6 +129,7 @@ export const AuthProvider = ({ children }) => {
       setUser(res.data);
       setError(null);
     } catch (err) {
+      console.error('Auth check error:', err);
       if (err.response?.status === 401) {
         localStorage.removeItem('token');
         setUser(null);
@@ -84,11 +138,11 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadUser();
-    // Set up periodic check for token validity
+    // Set up periodic check for token validity with increased interval
     const interval = setInterval(loadUser, AUTH_CHECK_INTERVAL);
     return () => clearInterval(interval);
   }, [loadUser]);

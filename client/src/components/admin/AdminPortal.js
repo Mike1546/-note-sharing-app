@@ -164,15 +164,28 @@ const AdminPortal = () => {
 
   const handleChangePassword = async () => {
     try {
-      const response = await axios.put(`/api/admin/users/${selectedUser._id}/reset-password`, {
+      if (!newPassword || newPassword.length < 6) {
+        setError('Password must be at least 6 characters long');
+        return;
+      }
+
+      await axios.put(`/api/admin/users/${selectedUser._id}/password`, {
         newPassword
       });
-      setSuccess(`Password changed successfully for ${selectedUser.name}`);
+      
+      showSnackbar(`Password changed successfully for ${selectedUser.name}`, 'success');
       setDialogOpen(false);
       setNewPassword('');
+      setDialogType('');
     } catch (err) {
-      setError('Failed to change password');
+      setError(err.response?.data?.message || 'Failed to change password');
     }
+  };
+
+  const handlePasswordChange = (user) => {
+    setSelectedUser(user);
+    setDialogType('changePassword');
+    setDialogOpen(true);
   };
 
   const handleDeletePasswordEntry = async (entryId) => {
@@ -355,33 +368,30 @@ const AdminPortal = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <IconButton 
-                              onClick={() => handleEditUser(user)}
-                              size="small"
-                              color="primary"
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton 
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setDialogType('changePassword');
-                                setDialogOpen(true);
-                              }}
-                              size="small"
-                              color="secondary"
-                            >
-                              <KeyIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton 
-                              onClick={() => handleDeleteUser(user._id)}
-                              size="small"
-                              color="error"
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Box>
+                          <IconButton
+                            size="small"
+                            onClick={() => handlePasswordChange(user)}
+                            color="primary"
+                            title="Change password"
+                          >
+                            <KeyIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditUser(user)}
+                            color="primary"
+                            title="Edit user"
+                          >
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteUser(user._id)}
+                            color="error"
+                            title="Delete user"
+                          >
+                            <DeleteIcon />
+                          </IconButton>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -525,6 +535,40 @@ const AdminPortal = () => {
             </Table>
           </TableContainer>
         </Box>
+
+        <Dialog 
+          open={dialogOpen && dialogType === 'changePassword'} 
+          onClose={handleCloseDialog}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Change Password for {selectedUser?.name}</DialogTitle>
+          <DialogContent>
+            <Box sx={{ pt: 2 }}>
+              <TextField
+                fullWidth
+                type="password"
+                label="New Password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                margin="dense"
+                autoFocus
+                error={!!error && error.includes('Password')}
+                helperText={error && error.includes('Password') ? error : ''}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDialog}>Cancel</Button>
+            <Button 
+              onClick={handleChangePassword} 
+              variant="contained"
+              disabled={!newPassword || newPassword.length < 6}
+            >
+              Change Password
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         <Dialog 
           open={dialogOpen} 

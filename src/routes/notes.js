@@ -7,6 +7,46 @@ const CryptoJS = require('crypto-js');
 const NoteGroup = require('../models/NoteGroup');
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const rateLimit = require('express-rate-limit');
+
+// Rate limiter for general note access
+const noteAccessLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { message: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Stricter rate limiter for passcode attempts
+const passcodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minute window
+  max: 10, // limit each IP to 10 attempts per windowMs
+  message: { message: 'Too many passcode attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipFailedRequests: false, // count failed attempts
+  keyGenerator: (req) => {
+    // Use both IP and note ID to prevent lockout of other notes
+    return `${req.ip}-${req.params.id}`;
+  }
+});
+
+// Helper function to check if a request needs passcode limiting
+function isPasscodeAttempt(req) {
+  return req.query.passcode !== undefined;
+}
+
+// Apply general rate limiting to all note routes
+router.use(noteAccessLimiter);
+
+// Apply stricter rate limiting to passcode attempts
+router.use('/:id', (req, res, next) => {
+  if (isPasscodeAttempt(req)) {
+    return passcodeLimiter(req, res, next);
+  }
+  next();
+});
 
 // Create a note group
 router.post('/groups', auth, async (req, res) => {
@@ -305,6 +345,8 @@ router.post('/',
         return res.status(400).json({ errors: errors.array() });
       }
 
+      console.log('Creating note with data:', req.body);
+
       // Parse the request body if it's a string
       let noteData = req.body;
       if (typeof req.body === 'string') {
@@ -318,6 +360,16 @@ router.post('/',
 
       const { title, content, isLocked, lockPasscode, tags, isEncrypted, groupId } = noteData;
 
+      console.log('Processed note data:', {
+        title,
+        hasContent: !!content,
+        isLocked,
+        hasLockPasscode: !!lockPasscode,
+        tags,
+        isEncrypted,
+        groupId
+      });
+
       let processedContent = content;
       if (isEncrypted) {
         processedContent = CryptoJS.AES.encrypt(
@@ -327,12 +379,15 @@ router.post('/',
       }
 
       // If groupId is provided, verify user has access to the group
-      if (groupId) {
+      let verifiedGroupId = null;
+      if (groupId && groupId !== 'undefined' && groupId !== 'null') {
+        console.log('Verifying group access for groupId:', groupId);
         const group = await NoteGroup.findById(groupId)
           .populate('owner', 'name email')
           .populate('members.user', 'name email');
           
         if (!group) {
+          console.log('Group not found:', groupId);
           return res.status(404).json({ message: 'Group not found' });
         }
 
@@ -340,9 +395,20 @@ router.post('/',
           member.user._id.toString() === req.user.userId.toString()
         );
         
-        if (!isMember && group.owner._id.toString() !== req.user.userId.toString()) {
+        const isOwner = group.owner._id.toString() === req.user.userId.toString();
+        
+        console.log('Group access check:', {
+          isMember,
+          isOwner,
+          userId: req.user.userId,
+          groupOwner: group.owner._id
+        });
+
+        if (!isMember && !isOwner) {
           return res.status(403).json({ message: 'Not authorized to add notes to this group' });
         }
+
+        verifiedGroupId = group._id;
       }
 
       const note = new Note({
@@ -353,7 +419,7 @@ router.post('/',
         lockPasscode: lockPasscode || '',
         tags: tags || [],
         isEncrypted: isEncrypted || false,
-        group: groupId || null
+        group: verifiedGroupId
       });
 
       const savedNote = await note.save();
@@ -364,7 +430,13 @@ router.post('/',
         group: savedNote.group
       });
       
-      res.status(201).json(savedNote);
+      // Populate the saved note before sending response
+      const populatedNote = await Note.findById(savedNote._id)
+        .populate('owner', 'name email')
+        .populate('group')
+        .lean();
+      
+      res.status(201).json(populatedNote);
     } catch (err) {
       console.error('Error creating note:', err);
       console.error('Error details:', {
@@ -384,12 +456,32 @@ router.post('/',
 // Get all notes for current user
 router.get('/', auth, async (req, res) => {
   try {
+    console.log('Fetching all notes for user:', req.user.userId);
+
+    // First get all groups where user is a member
+    const groups = await NoteGroup.find({
+      $or: [
+        { owner: req.user.userId },
+        { 'members.user': req.user.userId }
+      ]
+    });
+
+    const groupIds = groups.map(group => group._id);
+    console.log('User groups:', groupIds);
+
+    // Then get all notes that user has access to
     const notes = await Note.find({
       $or: [
         { owner: req.user.userId },
-        { 'sharedWith.user': req.user.userId }
+        { 'sharedWith.user': req.user.userId },
+        { group: { $in: groupIds } }
       ]
-    }).sort({ lastModified: -1 });
+    })
+    .populate('group')
+    .populate('owner', 'name email')
+    .sort({ lastModified: -1 });
+
+    console.log(`Found ${notes.length} notes`);
 
     // Process notes before sending
     const processedNotes = notes.map(note => {
@@ -416,80 +508,247 @@ router.get('/', auth, async (req, res) => {
     res.json(processedNotes);
   } catch (err) {
     console.error('Error fetching notes:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ 
+      message: 'Server error',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 
-// Get a specific note
-router.get('/:id', auth, async (req, res) => {
+// Helper function to check note access
+async function checkNoteAccess(note, userId) {
   try {
-    const note = await Note.findOne({
-      _id: req.params.id,
-      $or: [
-        { owner: req.user.userId },
-        { 'sharedWith.user': req.user.userId }
-      ]
-    }).select('+lockPasscode');
-
-    if (!note) {
-      return res.status(404).json({ message: 'Note not found' });
+    // Direct ownership or sharing
+    if (note.owner && note.owner.toString() === userId) {
+      return true;
     }
 
-    if (note.isLocked) {
-      const { passcode } = req.query;
-      console.log('Received passcode:', passcode);
-      console.log('Stored passcode:', note.lockPasscode);
-      
-      if (!passcode) {
-        return res.status(401).json({ message: 'Passcode required' });
+    if (note.sharedWith && Array.isArray(note.sharedWith) && 
+        note.sharedWith.some(share => share && share.user && share.user.toString() === userId)) {
+      return true;
+    }
+
+    // Check group access if note belongs to a group
+    if (note.group && note.group._id) {
+      const group = await NoteGroup.findById(note.group._id)
+        .populate('owner')
+        .populate('members.user');
+
+      if (group) {
+        const isOwner = group.owner && group.owner._id.toString() === userId;
+        const isMember = group.members && Array.isArray(group.members) &&
+          group.members.some(member => 
+            member && member.user && member.user._id.toString() === userId
+          );
+        return isOwner || isMember;
       }
-      
-      // Convert both to strings and trim for comparison
-      if (String(passcode).trim() !== String(note.lockPasscode).trim()) {
-        return res.status(401).json({ message: 'Invalid passcode' });
-      }
     }
 
-    if (note.isEncrypted) {
-      const bytes = CryptoJS.AES.decrypt(
-        note.content,
-        process.env.ENCRYPTION_KEY || 'your-encryption-key'
-      );
-      note.content = bytes.toString(CryptoJS.enc.Utf8);
-    }
-
-    res.json(note);
-  } catch (err) {
-    console.error('Error fetching note:', err);
-    res.status(500).json({ message: 'Server error' });
+    return false;
+  } catch (error) {
+    console.error('Error in checkNoteAccess:', error);
+    return false;
   }
-});
+}
 
 // Get note metadata (without content)
 router.get('/:id/metadata', auth, async (req, res) => {
   try {
-    const note = await Note.findOne({
-      _id: req.params.id,
+    console.log('Fetching note metadata for ID:', req.params.id);
+    console.log('User ID:', req.user.userId);
+
+    // First get all groups where user is a member
+    const userGroups = await NoteGroup.find({
       $or: [
         { owner: req.user.userId },
-        { 'sharedWith.user': req.user.userId }
+        { 'members.user': req.user.userId }
       ]
-    }).select('title isLocked lastModified createdAt tags isEncrypted content');
+    });
+    const groupIds = userGroups.map(group => group._id);
+    console.log('User is member of groups:', groupIds);
+
+    const note = await Note.findById(req.params.id)
+      .populate({
+        path: 'group',
+        populate: {
+          path: 'members.user owner',
+          select: 'name email'
+        }
+      })
+      .populate('owner', 'name email')
+      .populate('sharedWith.user', 'name email')
+      .lean();
 
     if (!note) {
+      console.log('Note not found with ID:', req.params.id);
       return res.status(404).json({ message: 'Note not found' });
+    }
+
+    console.log('Found note:', {
+      id: note._id,
+      owner: note.owner?._id || note.owner,
+      group: note.group?._id || note.group,
+      isLocked: note.isLocked
+    });
+
+    // Check if user has access to the note
+    const hasDirectAccess = note.owner?._id?.toString() === req.user.userId || 
+                          note.owner?.toString() === req.user.userId;
+    
+    const hasSharedAccess = note.sharedWith?.some(share => 
+      share.user?._id?.toString() === req.user.userId || 
+      share.user?.toString() === req.user.userId
+    );
+    
+    const hasGroupAccess = note.group && groupIds.some(groupId => 
+      groupId.toString() === note.group._id?.toString()
+    );
+
+    console.log('Access check results:', {
+      hasDirectAccess,
+      hasSharedAccess,
+      hasGroupAccess,
+      userGroups: groupIds.map(id => id.toString()),
+      noteGroupId: note.group?._id?.toString()
+    });
+
+    if (!hasDirectAccess && !hasSharedAccess && !hasGroupAccess) {
+      console.log('Access denied for user:', req.user.userId);
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     // If note is locked, mask the content
     const responseNote = {
-      ...note.toObject(),
+      ...note,
       content: note.isLocked ? '🔒 This note is locked. Enter passcode to view.' : note.content
     };
 
     res.json(responseNote);
   } catch (err) {
     console.error('Error fetching note metadata:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Full error:', err);
+    res.status(500).json({ 
+      message: 'Server error',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+});
+
+// Get a specific note
+router.get('/:id', auth, async (req, res) => {
+  try {
+    console.log('Fetching note for ID:', req.params.id);
+    console.log('User ID:', req.user.userId);
+    console.log('Query params:', req.query);
+
+    // First get all groups where user is a member
+    const userGroups = await NoteGroup.find({
+      $or: [
+        { owner: req.user.userId },
+        { 'members.user': req.user.userId }
+      ]
+    });
+    const groupIds = userGroups.map(group => group._id);
+    console.log('User is member of groups:', groupIds);
+
+    const note = await Note.findById(req.params.id)
+      .populate({
+        path: 'group',
+        populate: {
+          path: 'members.user owner',
+          select: 'name email'
+        }
+      })
+      .populate('owner', 'name email')
+      .populate('sharedWith.user', 'name email')
+      .select('+lockPasscode');
+
+    if (!note) {
+      console.log('Note not found with ID:', req.params.id);
+      return res.status(404).json({ message: 'Note not found' });
+    }
+
+    console.log('Found note:', {
+      id: note._id,
+      owner: note.owner?._id || note.owner,
+      group: note.group?._id || note.group,
+      isLocked: note.isLocked
+    });
+
+    // Check if user has access to the note
+    const hasDirectAccess = note.owner?._id?.toString() === req.user.userId || 
+                          note.owner?.toString() === req.user.userId;
+    
+    const hasSharedAccess = note.sharedWith?.some(share => 
+      share.user?._id?.toString() === req.user.userId || 
+      share.user?.toString() === req.user.userId
+    );
+    
+    const hasGroupAccess = note.group && groupIds.some(groupId => 
+      groupId.toString() === note.group._id?.toString()
+    );
+
+    console.log('Access check results:', {
+      hasDirectAccess,
+      hasSharedAccess,
+      hasGroupAccess,
+      userGroups: groupIds.map(id => id.toString()),
+      noteGroupId: note.group?._id?.toString()
+    });
+
+    if (!hasDirectAccess && !hasSharedAccess && !hasGroupAccess) {
+      console.log('Access denied for user:', req.user.userId);
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (note.isLocked) {
+      const { passcode } = req.query;
+      console.log('Checking passcode:', passcode ? '(provided)' : '(not provided)');
+      console.log('Note lockPasscode:', note.lockPasscode ? '(exists)' : '(not set)');
+      
+      if (!passcode) {
+        return res.status(401).json({ message: 'Passcode required' });
+      }
+      
+      // Convert both to strings and trim for comparison
+      const providedPasscode = String(passcode).trim();
+      const correctPasscode = String(note.lockPasscode).trim();
+      
+      console.log('Passcode comparison:', {
+        providedLength: providedPasscode.length,
+        correctLength: correctPasscode.length,
+        match: providedPasscode === correctPasscode
+      });
+      
+      if (providedPasscode !== correctPasscode) {
+        return res.status(401).json({ message: 'Invalid passcode' });
+      }
+    }
+
+    // Convert note to plain object for modification
+    const noteObj = note.toObject();
+
+    if (note.isEncrypted) {
+      try {
+      const bytes = CryptoJS.AES.decrypt(
+        note.content,
+        process.env.ENCRYPTION_KEY || 'your-encryption-key'
+      );
+        noteObj.content = bytes.toString(CryptoJS.enc.Utf8);
+      } catch (error) {
+        console.error('Error decrypting note:', error);
+        return res.status(500).json({ message: 'Error decrypting note content' });
+      }
+    }
+
+    res.json(noteObj);
+  } catch (err) {
+    console.error('Error fetching note:', err);
+    console.error('Full error:', err);
+    res.status(500).json({ 
+      message: 'Server error',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 

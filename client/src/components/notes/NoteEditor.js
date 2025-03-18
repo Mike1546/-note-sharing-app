@@ -144,10 +144,19 @@ const NoteEditor = () => {
   };
 
   const handleChange = (e) => {
-    setNote({
-      ...note,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    // For groupId, convert empty string to null to avoid undefined
+    if (name === 'groupId') {
+      setNote(prev => ({
+        ...prev,
+        [name]: value || null
+      }));
+    } else {
+      setNote(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleToggleLock = () => {
@@ -278,12 +287,12 @@ const NoteEditor = () => {
           <InputLabel>Group</InputLabel>
           <Select
             name="groupId"
-            value={note.groupId}
+            value={note.groupId || ''}
             onChange={handleChange}
             label="Group"
           >
             <MenuItem value="">No Group</MenuItem>
-            {groups.map((group) => (
+            {Array.isArray(groups) && groups.map((group) => (
               <MenuItem key={group._id} value={group._id}>
                 {group.name}
               </MenuItem>

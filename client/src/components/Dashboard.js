@@ -21,13 +21,19 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction
 } from '@mui/material';
 import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Share as ShareIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  PersonAdd as PersonAddIcon,
+  PersonRemove as PersonRemoveIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import NoteGroupList from './notes/NoteGroupList';
@@ -50,6 +56,9 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
 
   useEffect(() => {
     const fetchWithRetry = async (url, retries = 3, baseDelay = 1000) => {
@@ -150,10 +159,24 @@ const Dashboard = () => {
     }
   };
 
-  const handleGroupSubmit = (groupData) => {
-    setGroups([groupData, ...groups]);
-    setGroupDialogOpen(false);
-    setSuccess('Group created successfully');
+  const updateGroups = async () => {
+    try {
+      const response = await axios.get('/api/notes/groups');
+      setGroups(response.data);
+    } catch (error) {
+      console.error('Error updating groups:', error);
+      setError('Failed to update groups');
+    }
+  };
+
+  const handleGroupSubmit = async (groupData) => {
+    try {
+      await updateGroups();
+      setGroupDialogOpen(false);
+      setSuccess('Group created successfully');
+    } catch (error) {
+      setError('Failed to update groups');
+    }
   };
 
   const handleTabChange = (event, newValue) => {
@@ -162,6 +185,60 @@ const Dashboard = () => {
 
   const handleGroupSelect = (groupId) => {
     setSelectedGroup(groupId);
+  };
+
+  const handleDeleteClick = (group) => {
+    setSelectedGroup(group);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await axios.delete(`/api/notes/groups/${selectedGroup._id}`);
+      await updateGroups();
+      setDeleteDialogOpen(false);
+      setSuccess('Group deleted successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Delete error:', err.response || err);
+      setError(err.response?.data?.message || 'Failed to delete group');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const handleAddMemberClick = (group) => {
+    setSelectedGroup(group);
+    setAddMemberDialogOpen(true);
+  };
+
+  const handleAddMember = async () => {
+    try {
+      await axios.post(`/api/notes/groups/${selectedGroup._id}/members`, {
+        email: newMemberEmail
+      });
+      await updateGroups();
+      setAddMemberDialogOpen(false);
+      setNewMemberEmail('');
+      setSuccess('Member added successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Add member error:', err.response || err);
+      setError(err.response?.data?.message || 'Failed to add member');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const handleRemoveMember = async (groupId, memberId) => {
+    try {
+      await axios.delete(`/api/notes/groups/${groupId}/members/${memberId}`);
+      await updateGroups();
+      setSuccess('Member removed successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Remove member error:', err.response || err);
+      setError(err.response?.data?.message || 'Failed to remove member');
+      setTimeout(() => setError(''), 3000);
+    }
   };
 
   const renderNoteCard = (note) => (
@@ -240,78 +317,83 @@ const Dashboard = () => {
         <Tab label="Group Notes" />
       </Tabs>
 
-      {activeTab === 0 && (
-        <>
-          <Box sx={{ mb: 2 }}>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/notes/new')}
-            >
-              New Note
-            </Button>
-          </Box>
-          <Grid container spacing={2}>
-            {notes.filter(note => !note.group).map(renderNoteCard)}
-          </Grid>
-        </>
-      )}
-
-      {activeTab === 1 && (
-        <>
-          <Box sx={{ mb: 2 }}>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => setGroupDialogOpen(true)}
-            >
-              Create Group
-            </Button>
-          </Box>
-          <NoteGroupList groups={groups} onUpdate={setGroups} />
-        </>
-      )}
-
-      {activeTab === 2 && (
-        <Box>
-          <Box sx={{ mb: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>Select Group</InputLabel>
-              <Select
-                value={selectedGroup || ''}
-                onChange={(e) => handleGroupSelect(e.target.value)}
-                label="Select Group"
+      <Box sx={{ mt: 2 }}>
+        {activeTab === 0 && (
+          <>
+            <Box sx={{ mb: 2 }}>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => navigate('/notes/new')}
               >
-                <MenuItem value="">
-                  <em>Select a group</em>
-                </MenuItem>
-                {groups.map((group) => (
-                  <MenuItem key={group._id} value={group._id}>
-                    {group.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
+                New Note
+              </Button>
+            </Box>
+            <Grid container spacing={2}>
+              {notes.filter(note => !note.group).map(renderNoteCard)}
+            </Grid>
+          </>
+        )}
 
-          {selectedGroup && (
-            <>
-              <Box sx={{ mb: 2 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => navigate(`/notes/new?groupId=${selectedGroup}`)}
+        {activeTab === 1 && (
+          <Box>
+            <Box sx={{ mb: 2 }}>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setGroupDialogOpen(true)}
+              >
+                Create Group
+              </Button>
+            </Box>
+            <NoteGroupList 
+              groups={groups} 
+              onUpdate={updateGroups}
+            />
+          </Box>
+        )}
+
+        {activeTab === 2 && (
+          <Box>
+            <Box sx={{ mb: 2 }}>
+              <FormControl fullWidth>
+                <InputLabel>Select Group</InputLabel>
+                <Select
+                  value={selectedGroup || ''}
+                  onChange={(e) => handleGroupSelect(e.target.value)}
+                  label="Select Group"
                 >
-                  Add Note to Group
-                </Button>
-              </Box>
-              <Grid container spacing={2}>
-                {groupNotes[selectedGroup]?.map(renderNoteCard)}
-              </Grid>
-            </>
-          )}
-        </Box>
-      )}
+                  <MenuItem value="">
+                    <em>Select a group</em>
+                  </MenuItem>
+                  {groups.map((group) => (
+                    <MenuItem key={group._id} value={group._id}>
+                      {group.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            {selectedGroup && (
+              <>
+                <Box sx={{ mb: 2 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => navigate(`/notes/new?groupId=${selectedGroup}`)}
+                  >
+                    Add Note to Group
+                  </Button>
+                </Box>
+                <Grid container spacing={2}>
+                  {groupNotes[selectedGroup]?.map(renderNoteCard)}
+                </Grid>
+              </>
+            )}
+          </Box>
+        )}
+      </Box>
 
       <Dialog
         open={shareDialogOpen}
@@ -366,6 +448,42 @@ const Dashboard = () => {
             onCancel={() => setGroupDialogOpen(false)}
           />
         </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Group</DialogTitle>
+        <DialogContent>
+          Are you sure you want to delete this group?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDelete} color="error">Delete</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog 
+        open={addMemberDialogOpen} 
+        onClose={() => setAddMemberDialogOpen(false)}
+      >
+        <DialogTitle>Add Member</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Member Email"
+            type="email"
+            fullWidth
+            value={newMemberEmail}
+            onChange={(e) => setNewMemberEmail(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddMemberDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleAddMember} color="primary">Add</Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

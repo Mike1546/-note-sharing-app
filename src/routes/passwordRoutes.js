@@ -404,7 +404,20 @@ router.get('/entries', auth, async (req, res) => {
       mongooseModels: Object.keys(mongoose.models)
     });
 
-    const userEntries = await PasswordEntry.find({ owner: req.user.userId });
+    // Find all groups where user is a member
+    const groups = await PasswordGroup.find({
+      'members.user': req.user.userId
+    });
+    const groupIds = groups.map(group => group._id);
+
+    // Find both owned passwords and passwords from groups where user is a member
+    const userEntries = await PasswordEntry.find({
+      $or: [
+        { owner: req.user.userId },
+        { group: { $in: groupIds } }
+      ]
+    }).populate('group', 'name members');
+
     console.log('Found password entries:', {
       count: userEntries.length,
       entries: userEntries.map(entry => ({
@@ -469,10 +482,10 @@ router.post('/entries', auth, async (req, res) => {
       title: req.body.title,
       hasUsername: !!req.body.username,
       hasPassword: !!req.body.password,
-      hasGroup: !!req.body.group
+      hasGroupId: !!req.body.groupId
     });
 
-    const { title, username, password, url, notes, group } = req.body;
+    const { title, username, password, url, notes, groupId } = req.body;
 
     // Validate required fields
     if (!title || !username || !password) {
@@ -486,7 +499,7 @@ router.post('/entries', auth, async (req, res) => {
       url: url || '',
       notes: notes || '',
       owner: req.user.userId,
-      group: group || null
+      group: groupId || null
     });
 
     await entry.save();
@@ -516,12 +529,98 @@ router.get('/groups', auth, async (req, res) => {
     const groups = await PasswordGroup.find({
       $or: [
         { owner: req.user.userId },
-        { 'sharedWith.user': req.user.userId }
+        { 'members.user': req.user.userId }
       ]
-    });
+    }).populate('owner', 'name email')
+      .populate('members.user', 'name email');
+      
     res.json(groups);
   } catch (err) {
     res.status(500).json({ msg: 'Error fetching groups' });
+  }
+});
+
+// Create a new password group
+router.post('/groups', auth, async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ msg: 'Group name is required' });
+    }
+
+    const group = new PasswordGroup({
+      name,
+      description,
+      owner: req.user.userId,
+      members: [{
+        user: req.user.userId,
+        role: 'admin'
+      }]
+    });
+
+    await group.save();
+    
+    // Populate owner and member details
+    const populatedGroup = await PasswordGroup.findById(group._id)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email');
+
+    res.status(201).json(populatedGroup);
+  } catch (err) {
+    console.error('Create password group error:', err);
+    res.status(500).json({ msg: 'Error creating password group' });
+  }
+});
+
+// Add a member to a password group
+router.post('/groups/:groupId/members', auth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    const group = await PasswordGroup.findById(req.params.groupId)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email');
+
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    // Check if user is owner or admin of the group
+    const isOwner = group.owner._id.toString() === req.user.userId.toString();
+    const isAdmin = group.members.some(member => 
+      member.user._id.toString() === req.user.userId.toString() && 
+      member.role === 'admin'
+    );
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to add members' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (group.members.some(member => member.user._id.toString() === user._id.toString())) {
+      return res.status(400).json({ message: 'User is already a member' });
+    }
+
+    group.members.push({
+      user: user._id,
+      role: 'member'
+    });
+
+    await group.save();
+    
+    // Populate the response
+    const updatedGroup = await PasswordGroup.findById(group._id)
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email');
+      
+    res.json(updatedGroup);
+  } catch (error) {
+    console.error('Error adding member to password group:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -583,20 +682,20 @@ router.delete('/entries/:id', auth, async (req, res) => {
     const canDelete = 
       // User is admin
       req.user.isAdmin || 
-      // User is owner
-      entry.owner.toString() === req.user.userId || 
+      // User is owner (compare as strings to ensure proper comparison)
+      entry.owner.toString() === req.user.userId.toString() || 
       // User is group admin
-      (entry.group && entry.group.members.some(m => 
-        m.user.toString() === req.user.userId && 
+      (entry.group && entry.group.members && entry.group.members.some(m => 
+        m.user.toString() === req.user.userId.toString() && 
         m.role === 'admin'
       ));
 
     console.log('Delete permission check:', {
       canDelete,
       isAdmin: req.user.isAdmin,
-      isOwner: entry.owner.toString() === req.user.userId,
-      isGroupAdmin: entry.group && entry.group.members.some(m => 
-        m.user.toString() === req.user.userId && 
+      isOwner: entry.owner.toString() === req.user.userId.toString(),
+      isGroupAdmin: entry.group && entry.group.members && entry.group.members.some(m => 
+        m.user.toString() === req.user.userId.toString() && 
         m.role === 'admin'
       )
     });
