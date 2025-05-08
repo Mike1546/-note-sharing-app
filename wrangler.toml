@@ -8,9 +8,6 @@ bucket = "./dist"  # Adjust if your build output is in a different folder
 [build]
 command = "npm run build"  # Adjust if your build command is different
 
-[build.upload]
-format = "service-worker"
-
 # Environment variables (if needed)
 [vars]
 # Add your environment variables here, e.g.:
@@ -19,4 +16,6 @@ format = "service-worker"
 # Uncomment and adjust if you have a custom domain
 # [env.production]
 # workers_dev = false
-# route = "yourdomain.com/*" 
+# route = "yourdomain.com/*"
+
+main = "workers-site/index.js" 
