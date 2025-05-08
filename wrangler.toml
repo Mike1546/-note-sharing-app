@@ -1,0 +1,22 @@
+# wrangler.toml for Cloudflare deployment
+
+# Frontend (Cloudflare Pages)
+[site]
+bucket = "./dist"  # Adjust if your build output is in a different folder
+
+# Backend (Cloudflare Workers)
+[build]
+command = "npm run build"  # Adjust if your build command is different
+
+[build.upload]
+format = "service-worker"
+
+# Environment variables (if needed)
+[vars]
+# Add your environment variables here, e.g.:
+# API_URL = "https://your-api-url.com"
+
+# Uncomment and adjust if you have a custom domain
+# [env.production]
+# workers_dev = false
+# route = "yourdomain.com/*" 

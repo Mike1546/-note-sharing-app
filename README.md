@@ -97,4 +97,35 @@ npm run dev
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Cloudflare Deployment Instructions
+
+### Prerequisites
+- Install Wrangler CLI: `npm install -g wrangler`
+- Ensure you have a Cloudflare account and are logged in via Wrangler.
+
+### Frontend Deployment (Cloudflare Pages)
+1. Build your frontend:
+   ```bash
+   cd client
+   npm run build
+   ```
+2. Deploy using Wrangler:
+   ```bash
+   wrangler pages deploy dist
+   ```
+
+### Backend Deployment (Cloudflare Workers)
+1. Build your backend:
+   ```bash
+   npm run build
+   ```
+2. Deploy using Wrangler:
+   ```bash
+   wrangler publish
+   ```
+
+### Configuration
+- Adjust `wrangler.toml` as needed for your project.
+- Set environment variables in the Cloudflare dashboard or via `wrangler.toml`. 
