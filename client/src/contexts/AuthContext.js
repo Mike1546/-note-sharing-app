@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Configure axios defaults
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-axios.defaults.baseURL = isLocalhost ? 'http://localhost:5000' : 'http://100.127.255.204:5000';
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || (isLocalhost ? 'http://localhost:5000' : '');
 axios.defaults.headers.post['Content-Type'] = 'application/json';
 
 // Flag to prevent redirect loops
