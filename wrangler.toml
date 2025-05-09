@@ -18,4 +18,8 @@ command = "npm run build"  # Adjust if your build command is different
 # workers_dev = false
 # route = "yourdomain.com/*"
 
-main = "workers-site/index.js" 
+name = "note-sharing-app"
+main = "src/server.js"
+compatibility_date = "2025-05-08"
+
+# Add any environment variables you use here 
