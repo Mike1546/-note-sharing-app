@@ -1,25 +1,17 @@
 # wrangler.toml for Cloudflare deployment
 
-# Frontend (Cloudflare Pages)
-[site]
-bucket = "./dist"  # Adjust if your build output is in a different folder
-
-# Backend (Cloudflare Workers)
-[build]
-command = "npm run build"  # Adjust if your build command is different
+name = "note-sharing-app"
+main = "src/server.js"
+compatibility_date = "2025-05-08"
 
 # Environment variables (if needed)
 [vars]
-# Add your environment variables here, e.g.:
+# Add any environment variables here, e.g.:
 # API_URL = "https://your-api-url.com"
 
 # Uncomment and adjust if you have a custom domain
 # [env.production]
 # workers_dev = false
 # route = "yourdomain.com/*"
-
-name = "note-sharing-app"
-main = "src/server.js"
-compatibility_date = "2025-05-08"
 
 # Add any environment variables you use here 
