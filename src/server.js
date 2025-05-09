@@ -8,6 +8,7 @@ const compression = require('compression');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { errorHandler } = require('./middleware/errorHandler');
+const path = require('path');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -91,6 +92,15 @@ app.use('/api/groups', groupRoutes);
 app.get('/api/test', (req, res) => {
   console.log('Test endpoint accessed');
   res.json({ message: 'Server is working' });
+});
+
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../client/build')));
+
+// The "catchall" handler: for any request that doesn't
+// match one above, send back React's index.html file.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
 });
 
 // Error handling
