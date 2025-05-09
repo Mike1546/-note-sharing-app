@@ -7,7 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest",
-    "build": "cd client && npm install && npm run build && cd .. && npm install"
+    "build": "cd client && npm install && npm run build && cd .. && npm install && mkdir -p build && cp -r client/build/* build/"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
