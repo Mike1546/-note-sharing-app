@@ -31,7 +31,10 @@ app.use((req, res, next) => {
 });
 
 // Basic CORS setup
-app.use(cors());
+app.use(cors({
+  origin: 'https://note-sharing-app-1.onrender.com',
+  credentials: true
+}));
 
 // Basic middleware
 app.use(compression());
