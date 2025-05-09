@@ -97,13 +97,30 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Server is working' });
 });
 
+// Debug build directory
+const buildPath = path.join(__dirname, '../build');
+console.log('Build directory path:', buildPath);
+console.log('Build directory exists:', require('fs').existsSync(buildPath));
+if (require('fs').existsSync(buildPath)) {
+  console.log('Build directory contents:', require('fs').readdirSync(buildPath));
+}
+
 // Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../build')));
+app.use(express.static(buildPath));
 
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../build', 'index.html'));
+  const indexPath = path.join(buildPath, 'index.html');
+  console.log('Attempting to serve index.html from:', indexPath);
+  console.log('index.html exists:', require('fs').existsSync(indexPath));
+  
+  if (!require('fs').existsSync(indexPath)) {
+    console.error('index.html not found in build directory');
+    return res.status(404).send('Frontend build files not found. Please check the build process.');
+  }
+  
+  res.sendFile(indexPath);
 });
 
 // Error handling
