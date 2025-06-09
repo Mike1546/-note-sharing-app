@@ -8,8 +8,8 @@ router.get('/', auth, async (req, res) => {
   try {
     const groups = await Group.find({ 
       $or: [
-        { owner: req.user.id },
-        { members: req.user.id }
+        { owner: req.user.userId },
+        { members: req.user.userId }
       ]
     }).sort({ createdAt: -1 });
     res.json(groups);
@@ -31,8 +31,8 @@ router.post('/', auth, async (req, res) => {
     const group = new Group({
       name,
       description: description || '',
-      owner: req.user.id,
-      members: [req.user.id]
+      owner: req.user.userId,
+      members: [req.user.userId]
     });
 
     await group.save();
@@ -47,7 +47,7 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const { name, description } = req.body;
-    const group = await Group.findOne({ _id: req.params.id, owner: req.user.id });
+    const group = await Group.findOne({ _id: req.params.id, owner: req.user.userId });
 
     if (!group) {
       return res.status(404).json({ message: 'Group not found or unauthorized' });
@@ -67,7 +67,7 @@ router.put('/:id', auth, async (req, res) => {
 // Delete a group
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const group = await Group.findOne({ _id: req.params.id, owner: req.user.id });
+    const group = await Group.findOne({ _id: req.params.id, owner: req.user.userId });
 
     if (!group) {
       return res.status(404).json({ message: 'Group not found or unauthorized' });
@@ -85,7 +85,7 @@ router.delete('/:id', auth, async (req, res) => {
 router.post('/:id/members', auth, async (req, res) => {
   try {
     const { userId } = req.body;
-    const group = await Group.findOne({ _id: req.params.id, owner: req.user.id });
+    const group = await Group.findOne({ _id: req.params.id, owner: req.user.userId });
 
     if (!group) {
       return res.status(404).json({ message: 'Group not found or unauthorized' });
@@ -107,7 +107,7 @@ router.post('/:id/members', auth, async (req, res) => {
 // Remove member from group
 router.delete('/:id/members/:userId', auth, async (req, res) => {
   try {
-    const group = await Group.findOne({ _id: req.params.id, owner: req.user.id });
+    const group = await Group.findOne({ _id: req.params.id, owner: req.user.userId });
 
     if (!group) {
       return res.status(404).json({ message: 'Group not found or unauthorized' });
