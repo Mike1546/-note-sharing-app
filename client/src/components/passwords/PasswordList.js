@@ -25,7 +25,7 @@ import {
 } from '@mui/icons-material';
 import PasswordEntryForm from './PasswordEntryForm';
 import { useAuth } from '../../contexts/AuthContext';
-import axios from 'axios';
+import api from '../../api/axios';
 
 const PasswordList = ({ entries, onUpdate }) => {
   const { user } = useAuth();
@@ -53,7 +53,7 @@ const PasswordList = ({ entries, onUpdate }) => {
   const handleDelete = async (entryId) => {
     try {
       console.log('Deleting password entry:', entryId);
-      const response = await axios.delete(`/api/passwords/entries/${entryId}`);
+      const response = await api.delete(`/api/passwords/entries/${entryId}`);
       
       console.log('Delete response:', {
         status: response.status,
@@ -71,23 +71,10 @@ const PasswordList = ({ entries, onUpdate }) => {
 
   const handleUpdate = async (updatedData) => {
     try {
-      const response = await fetch(`/api/passwords/entries/${selectedEntry._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(updatedData)
-      });
-      
-      if (response.ok) {
-        onUpdate();
-        setEditDialogOpen(false);
-        setSuccess('Password entry updated successfully');
-      } else {
-        const data = await response.json();
-        setError(data.message);
-      }
+      await api.put(`/api/passwords/entries/${selectedEntry._id}`, updatedData);
+      onUpdate();
+      setEditDialogOpen(false);
+      setSuccess('Password entry updated successfully');
     } catch (err) {
       setError('Failed to update password entry');
     }

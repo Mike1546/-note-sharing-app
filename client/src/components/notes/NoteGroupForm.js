@@ -6,7 +6,7 @@ import {
   Typography,
   Alert
 } from '@mui/material';
-import axios from 'axios';
+import api from '../../api/axios';
 
 const NoteGroupForm = ({ onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
@@ -25,7 +25,7 @@ const NoteGroupForm = ({ onSubmit, onCancel }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('/api/notes/groups', formData);
+      const response = await api.post('/api/notes/groups', formData);
       onSubmit(response.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create group');

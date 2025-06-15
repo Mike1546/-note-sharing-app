@@ -38,7 +38,7 @@ import {
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
-import axios from 'axios';
+import api from '../../api/axios';
 
 const AdminPortal = () => {
   const { user } = useAuth();
@@ -92,7 +92,7 @@ const AdminPortal = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('/api/admin/users');
+      const response = await api.get('/api/admin/users');
       setUsers(response.data);
     } catch (error) {
       showSnackbar('Error fetching users', 'error');
@@ -101,7 +101,7 @@ const AdminPortal = () => {
 
   const fetchPasswordEntries = async () => {
     try {
-      const response = await axios.get('/api/admin/passwords');
+      const response = await api.get('/api/admin/passwords');
       setPasswordEntries(response.data);
     } catch (error) {
       showSnackbar('Error fetching password entries', 'error');
@@ -110,7 +110,7 @@ const AdminPortal = () => {
 
   const fetchGroups = async () => {
     try {
-      const response = await axios.get('/api/admin/groups');
+      const response = await api.get('/api/admin/groups');
       setGroups(response.data);
     } catch (error) {
       showSnackbar('Error fetching groups', 'error');
@@ -119,7 +119,7 @@ const AdminPortal = () => {
 
   const fetchLoginLogs = async () => {
     try {
-      const response = await axios.get('/api/admin/logs');
+      const response = await api.get('/api/admin/logs');
       setLoginLogs(response.data);
     } catch (error) {
       showSnackbar('Error fetching login logs', 'error');
@@ -139,7 +139,7 @@ const AdminPortal = () => {
 
   const handleUpdateUser = async () => {
     try {
-      const response = await axios.put(`/api/admin/users/${selectedUser._id}`, editUserData);
+      const response = await api.put(`/api/admin/users/${selectedUser._id}`, editUserData);
       setSuccess('User updated successfully');
       setDialogOpen(false);
       fetchUsers();
@@ -154,7 +154,7 @@ const AdminPortal = () => {
     }
 
     try {
-      await axios.delete(`/api/admin/users/${userId}`);
+      await api.delete(`/api/admin/users/${userId}`);
       setSuccess('User deleted successfully');
       fetchUsers();
     } catch (err) {
@@ -169,7 +169,7 @@ const AdminPortal = () => {
         return;
       }
 
-      await axios.put(`/api/admin/users/${selectedUser._id}/password`, {
+      await api.put(`/api/admin/users/${selectedUser._id}/password`, {
         newPassword
       });
       
@@ -194,7 +194,7 @@ const AdminPortal = () => {
     }
 
     try {
-      await axios.delete(`/api/admin/passwords/${entryId}`);
+      await api.delete(`/api/admin/passwords/${entryId}`);
       setSuccess('Password entry deleted successfully');
       fetchPasswordEntries();
     } catch (err) {
@@ -208,7 +208,7 @@ const AdminPortal = () => {
     }
 
     try {
-      await axios.delete(`/api/admin/groups/${groupId}`);
+      await api.delete(`/api/admin/groups/${groupId}`);
       setSuccess('Group deleted successfully');
       fetchGroups();
     } catch (err) {

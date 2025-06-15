@@ -15,7 +15,7 @@ import {
   Stack
 } from '@mui/material';
 import { Add as AddIcon, FileUpload as FileUploadIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../../api/axios';
 import PasswordList from './PasswordList';
 import PasswordGroupList from './PasswordGroupList';
 import PasswordEntryForm from './PasswordEntryForm';
@@ -39,7 +39,7 @@ const PasswordManager = () => {
   useEffect(() => {
     const loadSecondPasswordSetting = async () => {
       try {
-        const response = await axios.get('/api/passwords/second-password/settings');
+        const response = await api.get('/api/passwords/second-password/settings');
         const { requireSecondPassword } = response.data;
         setRequireSecondPassword(requireSecondPassword);
         if (!requireSecondPassword) {
@@ -58,8 +58,8 @@ const PasswordManager = () => {
     
     try {
       const [entriesRes, groupsRes] = await Promise.all([
-        axios.get('/api/passwords/entries'),
-        axios.get('/api/passwords/groups')
+        api.get('/api/passwords/entries'),
+        api.get('/api/passwords/groups')
       ]);
       setEntries(entriesRes.data);
       setGroups(groupsRes.data);
@@ -80,7 +80,7 @@ const PasswordManager = () => {
         setShowSetupDialog(true);
         setRequireSecondPassword(true);
       } else {
-        await axios.post('/api/passwords/second-password/settings', {
+        await api.post('/api/passwords/second-password/settings', {
           requireSecondPassword: false
         });
         setRequireSecondPassword(false);
@@ -115,7 +115,7 @@ const PasswordManager = () => {
 
   const handleEntrySubmit = async (entryData) => {
     try {
-      const response = await axios.post('/api/passwords/entries', entryData);
+      const response = await api.post('/api/passwords/entries', entryData);
       setEntries([response.data, ...entries]);
       setEntryDialogOpen(false);
       setSuccess('Password entry created successfully');
@@ -126,7 +126,7 @@ const PasswordManager = () => {
 
   const handleGroupSubmit = async (groupData) => {
     try {
-      const response = await axios.post('/api/passwords/groups', groupData);
+      const response = await api.post('/api/passwords/groups', groupData);
       setGroups([response.data, ...groups]);
       setGroupDialogOpen(false);
       setSuccess('Password group created successfully');
@@ -142,7 +142,7 @@ const PasswordManager = () => {
       setSuccess('');
       
       const format = 'csv'; // Default to CSV format
-      const response = await axios.get(`/api/passwords/export?format=${format}`, {
+      const response = await api.get(`/api/passwords/export?format=${format}`, {
         responseType: format === 'csv' ? 'blob' : 'json'
       });
       
@@ -250,7 +250,7 @@ const PasswordManager = () => {
         }
 
         try {
-          const response = await axios.post('/api/passwords/import', { 
+          const response = await api.post('/api/passwords/import', { 
             format,
             data: content
           }, {

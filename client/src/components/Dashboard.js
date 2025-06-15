@@ -35,7 +35,7 @@ import {
   PersonAdd as PersonAddIcon,
   PersonRemove as PersonRemoveIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../api/axios';
 import NoteGroupList from './notes/NoteGroupList';
 import NoteGroupForm from './notes/NoteGroupForm';
 
@@ -64,7 +64,7 @@ const Dashboard = () => {
     const fetchWithRetry = async (url, retries = 3, baseDelay = 1000) => {
       for (let i = 0; i < retries; i++) {
         try {
-          const response = await axios.get(url);
+          const response = await api.get(url);
           return response;
         } catch (error) {
           if (i === retries - 1) throw error;
@@ -116,7 +116,7 @@ const Dashboard = () => {
     try {
       for (let i = 0; i < 3; i++) {
         try {
-          await axios.delete(`/api/notes/${noteId}`);
+          await api.delete(`/api/notes/${noteId}`);
           setNotes(notes.filter(note => note._id !== noteId));
           setSuccess('Note deleted successfully');
           return;
@@ -140,7 +140,7 @@ const Dashboard = () => {
     try {
       for (let i = 0; i < 3; i++) {
         try {
-          await axios.post(`/api/notes/${selectedNote._id}/share`, {
+          await api.post(`/api/notes/${selectedNote._id}/share`, {
             email: shareEmail,
             permission: sharePermission
           });
@@ -161,7 +161,7 @@ const Dashboard = () => {
 
   const updateGroups = async () => {
     try {
-      const response = await axios.get('/api/notes/groups');
+      const response = await api.get('/api/notes/groups');
       setGroups(response.data);
     } catch (error) {
       console.error('Error updating groups:', error);
@@ -194,7 +194,7 @@ const Dashboard = () => {
 
   const handleDelete = async () => {
     try {
-      await axios.delete(`/api/notes/groups/${selectedGroup._id}`);
+      await api.delete(`/api/notes/groups/${selectedGroup._id}`);
       await updateGroups();
       setDeleteDialogOpen(false);
       setSuccess('Group deleted successfully');
@@ -213,7 +213,7 @@ const Dashboard = () => {
 
   const handleAddMember = async () => {
     try {
-      await axios.post(`/api/notes/groups/${selectedGroup._id}/members`, {
+      await api.post(`/api/notes/groups/${selectedGroup._id}/members`, {
         email: newMemberEmail
       });
       await updateGroups();
@@ -230,7 +230,7 @@ const Dashboard = () => {
 
   const handleRemoveMember = async (groupId, memberId) => {
     try {
-      await axios.delete(`/api/notes/groups/${groupId}/members/${memberId}`);
+      await api.delete(`/api/notes/groups/${groupId}/members/${memberId}`);
       await updateGroups();
       setSuccess('Member removed successfully');
       setTimeout(() => setSuccess(''), 3000);

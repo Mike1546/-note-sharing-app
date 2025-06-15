@@ -21,7 +21,7 @@ import {
   PersonAdd as PersonAddIcon,
   PersonRemove as PersonRemoveIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../../api/axios';
 
 const NoteGroupList = ({ groups, onUpdate }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -38,7 +38,7 @@ const NoteGroupList = ({ groups, onUpdate }) => {
 
   const handleDelete = async () => {
     try {
-      await axios.delete(`/api/notes/groups/${selectedGroup._id}`);
+      await api.delete(`/api/notes/groups/${selectedGroup._id}`);
       onUpdate();
       setDeleteDialogOpen(false);
       setSuccess('Group deleted successfully');
@@ -57,7 +57,7 @@ const NoteGroupList = ({ groups, onUpdate }) => {
 
   const handleAddMember = async () => {
     try {
-      await axios.post(`/api/notes/groups/${selectedGroup._id}/members`, {
+      await api.post(`/api/notes/groups/${selectedGroup._id}/members`, {
         email: newMemberEmail
       });
       onUpdate();
@@ -74,7 +74,7 @@ const NoteGroupList = ({ groups, onUpdate }) => {
 
   const handleRemoveMember = async (groupId, memberId) => {
     try {
-      await axios.delete(`/api/notes/groups/${groupId}/members/${memberId}`);
+      await api.delete(`/api/notes/groups/${groupId}/members/${memberId}`);
       onUpdate();
       setSuccess('Member removed successfully');
       setTimeout(() => setSuccess(''), 3000);
