@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const Group = require('../models/Group');
+const User = require('../models/User');
 
 // Get all groups for the authenticated user
 router.get('/', auth, async (req, res) => {
@@ -89,6 +90,11 @@ router.post('/:id/members', auth, async (req, res) => {
 
     if (!group) {
       return res.status(404).json({ message: 'Group not found or unauthorized' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
     if (group.members.includes(userId)) {
