@@ -34,7 +34,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { StaticDatePicker } from '@mui/x-date-pickers';
 import dayjs from 'dayjs';
-import axios from 'axios';
+import api from '../../api/axios';
 
 const Calendar = () => {
   const [selectedDate, setSelectedDate] = useState(dayjs());
@@ -59,7 +59,7 @@ const Calendar = () => {
   const getDayReminders = async (date) => {
     try {
       const formattedDate = date.format('YYYY-MM-DD');
-      const response = await axios.get(`/api/reminders?date=${formattedDate}`);
+      const response = await api.get(`/api/reminders?date=${formattedDate}`);
       const filteredReminders = response.data.filter(reminder => 
         dayjs(reminder.date).format('YYYY-MM-DD') === formattedDate
       );
@@ -103,7 +103,7 @@ const Calendar = () => {
 
   const handleDeleteReminder = async (reminderId) => {
     try {
-      await axios.delete(`/api/reminders/${reminderId}`);
+      await api.delete(`/api/reminders/${reminderId}`);
       await getDayReminders(selectedDate);
       setSuccess('Reminder deleted successfully');
     } catch (err) {
@@ -125,9 +125,9 @@ const Calendar = () => {
       };
 
       if (editingReminder) {
-        await axios.put(`/api/reminders/${editingReminder._id}`, reminderData);
+        await api.put(`/api/reminders/${editingReminder._id}`, reminderData);
       } else {
-        await axios.post('/api/reminders', reminderData);
+        await api.post('/api/reminders', reminderData);
       }
 
       await getDayReminders(selectedDate);

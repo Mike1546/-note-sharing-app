@@ -26,7 +26,7 @@ import {
   LockOpen as LockOpenIcon,
   Add as AddIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../../api/axios';
 
 const NoteEditor = () => {
   const { id } = useParams();
@@ -66,7 +66,7 @@ const NoteEditor = () => {
 
   const fetchGroups = async () => {
     try {
-      const response = await axios.get('/api/notes/groups');
+      const response = await api.get('/api/notes/groups');
       setGroups(response.data);
     } catch (error) {
       console.error('Error fetching groups:', error);
@@ -86,7 +86,7 @@ const NoteEditor = () => {
       };
 
       // First try to fetch the note metadata
-      const metadataResponse = await axios.get(`/api/notes/${id}/metadata`, config);
+      const metadataResponse = await api.get(`/api/notes/${id}/metadata`, config);
       const metadata = metadataResponse.data;
       
       setIsNoteLocked(metadata.isLocked);
@@ -108,7 +108,7 @@ const NoteEditor = () => {
       }
 
       console.log('Fetching note with URL:', url);
-      const response = await axios.get(url, config);
+      const response = await api.get(url, config);
       
       if (response.data) {
         const noteData = response.data;
@@ -233,9 +233,9 @@ const NoteEditor = () => {
       };
 
       if (id && id !== 'new') {
-        await axios.put(`/api/notes/${id}`, noteData);
+        await api.put(`/api/notes/${id}`, noteData);
       } else {
-        await axios.post('/api/notes', noteData);
+        await api.post('/api/notes', noteData);
       }
       navigate('/');
     } catch (error) {

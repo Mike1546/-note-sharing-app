@@ -12,7 +12,7 @@ import {
   DialogActions
 } from '@mui/material';
 import { Lock as LockIcon } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../../api/axios';
 
 const PasswordManagerAccess = ({ onAccess, requireSecondPassword, onSetupComplete, showSetup, onSetupCancel }) => {
   const [password, setPassword] = useState('');
@@ -51,7 +51,7 @@ const PasswordManagerAccess = ({ onAccess, requireSecondPassword, onSetupComplet
     e.preventDefault();
     
     try {
-      const response = await axios.post('/api/passwords/second-password/verify', { password });
+      const response = await api.post('/api/passwords/second-password/verify', { password });
       if (response.data.valid) {
         setAttempts(0);
         localStorage.removeItem('pmLockedUntil');
@@ -89,7 +89,7 @@ const PasswordManagerAccess = ({ onAccess, requireSecondPassword, onSetupComplet
     }
 
     try {
-      await axios.post('/api/passwords/second-password/settings', {
+      await api.post('/api/passwords/second-password/settings', {
         requireSecondPassword: true,
         secondPassword: setupPassword
       });

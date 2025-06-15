@@ -26,7 +26,7 @@ import {
   PersonAdd as PersonAddIcon,
   PersonRemove as PersonRemoveIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
 
 const PasswordGroupList = ({ groups, onUpdate }) => {
@@ -49,7 +49,7 @@ const PasswordGroupList = ({ groups, onUpdate }) => {
         ? `/api/admin/groups/${groupId}`
         : `/api/passwords/groups/${groupId}`;
 
-      await axios.delete(endpoint);
+      await api.delete(endpoint);
       onUpdate();
       setSuccess('Password group deleted successfully');
     } catch (err) {
@@ -59,7 +59,7 @@ const PasswordGroupList = ({ groups, onUpdate }) => {
 
   const handleAddMember = async () => {
     try {
-      const response = await axios.post(
+      const response = await api.post(
         `/api/passwords/groups/${selectedGroup._id}/members`,
         { email: newMemberEmail }
       );
@@ -74,7 +74,7 @@ const PasswordGroupList = ({ groups, onUpdate }) => {
 
   const handleRemoveMember = async (groupId, userId) => {
     try {
-      await axios.delete(`/api/passwords/groups/${groupId}/members/${userId}`);
+      await api.delete(`/api/passwords/groups/${groupId}/members/${userId}`);
       onUpdate();
       setSuccess('Member removed successfully');
     } catch (err) {
