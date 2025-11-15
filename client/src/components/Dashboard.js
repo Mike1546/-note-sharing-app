@@ -35,7 +35,9 @@ import {
   PersonAdd as PersonAddIcon,
   PersonRemove as PersonRemoveIcon
 } from '@mui/icons-material';
-import api from '../api/axios';
+import notesDb from '../services/db';
+import groupsService from '../services/groups';
+import { useAuth } from '../contexts/AuthContext';
 import NoteGroupList from './notes/NoteGroupList';
 import NoteGroupForm from './notes/NoteGroupForm';
 
@@ -44,6 +46,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [notes, setNotes] = useState([]);
   const [groups, setGroups] = useState([]);
   const [groupNotes, setGroupNotes] = useState({});
@@ -61,52 +64,44 @@ const Dashboard = () => {
   const [newMemberEmail, setNewMemberEmail] = useState('');
 
   useEffect(() => {
-    const fetchWithRetry = async (url, retries = 3, baseDelay = 1000) => {
-      for (let i = 0; i < retries; i++) {
-        try {
-          const response = await api.get(url);
-          return response;
-        } catch (error) {
-          if (i === retries - 1) throw error;
-          const waitTime = baseDelay * Math.pow(2, i);
-          await delay(waitTime);
-        }
-      }
-    };
-
     const fetchData = async () => {
       try {
-        // Fetch notes and groups sequentially to avoid rate limits
-        const notesResponse = await fetchWithRetry('/api/notes');
-        await delay(1000); // Wait 1 second between requests
-        const groupsResponse = await fetchWithRetry('/api/notes/groups');
-        
-        setNotes(notesResponse.data);
-        setGroups(groupsResponse.data);
-        
-        // Fetch group notes with delays
-        if (groupsResponse.data.length > 0) {
-          const groupNotesMap = {};
-          for (const group of groupsResponse.data) {
-            try {
-              await delay(1000); // Wait 1 second between requests
-              const response = await fetchWithRetry(`/api/notes/group/${group._id}`);
-              groupNotesMap[group._id] = response.data;
-            } catch (error) {
-              console.error(`Error fetching notes for group ${group._id}:`, error);
-              groupNotesMap[group._id] = [];
-            }
-          }
-          setGroupNotes(groupNotesMap);
-        }
-      } catch (error) {
+        if (!user?.$id) return;
+        // Notes (Appwrite)
+        const resNotes = await notesDb.listNotes(user.$id);
+        const mappedNotes = (resNotes?.documents || resNotes || []).map((d) => ({
+          _id: d.$id,
+          title: d.title || '',
+          content: d.content || '',
+          tags: d.tags || [],
+          group: d.groupId || null,
+        }));
+        setNotes(mappedNotes);
+
+        // Groups (Appwrite)
+        const groups = await groupsService.listGroups();
+        const mappedGroups = groups.map((g) => ({
+          _id: g.$id,
+          name: g.name || '',
+          description: g.description || '',
+          members: g.members || [],
+        }));
+        setGroups(mappedGroups);
+
+        // Build group -> notes mapping locally
+        const map = {};
+        mappedGroups.forEach((g) => {
+          map[g._id] = mappedNotes.filter((n) => (n.group || n.groupId) === g._id);
+        });
+        setGroupNotes(map);
+        setError('');
+      } catch (err) {
+        console.error('Error fetching Appwrite data:', err);
         setError('Failed to fetch data');
-        console.error('Error fetching data:', error);
       }
     };
-
     fetchData();
-  }, []); // Single useEffect for all data fetching
+  }, [user]);
 
   const handleEditNote = (noteId) => {
     navigate(`/notes/${noteId}`);
@@ -114,17 +109,9 @@ const Dashboard = () => {
 
   const handleDeleteNote = async (noteId) => {
     try {
-      for (let i = 0; i < 3; i++) {
-        try {
-          await api.delete(`/api/notes/${noteId}`);
-          setNotes(notes.filter(note => note._id !== noteId));
-          setSuccess('Note deleted successfully');
-          return;
-        } catch (error) {
-          if (i === 2) throw error;
-          await delay(1000 * Math.pow(2, i));
-        }
-      }
+      // For now, just remove locally until Note editor migration completes.
+      setNotes(notes.filter((n) => n._id !== noteId));
+      setSuccess('Note removed from view');
     } catch (error) {
       console.error('Error deleting note:', error);
       setError('Failed to delete note');
@@ -137,32 +124,16 @@ const Dashboard = () => {
   };
 
   const handleShareSubmit = async () => {
-    try {
-      for (let i = 0; i < 3; i++) {
-        try {
-          await api.post(`/api/notes/${selectedNote._id}/share`, {
-            email: shareEmail,
-            permission: sharePermission
-          });
-          setShareDialogOpen(false);
-          setShareEmail('');
-          setSuccess('Note shared successfully');
-          return;
-        } catch (error) {
-          if (i === 2) throw error;
-          await delay(1000 * Math.pow(2, i));
-        }
-      }
-    } catch (error) {
-      console.error('Error sharing note:', error);
-      setError('Failed to share note');
-    }
+    // Sharing not yet implemented with Appwrite in this UI.
+    setShareDialogOpen(false);
+    setSuccess('Sharing not available yet');
   };
 
   const updateGroups = async () => {
     try {
-      const response = await api.get('/api/notes/groups');
-      setGroups(response.data);
+      const gs = await groupsService.listGroups();
+      const mapped = gs.map((g) => ({ _id: g.$id, name: g.name || '', description: g.description || '', members: g.members || [] }));
+      setGroups(mapped);
     } catch (error) {
       console.error('Error updating groups:', error);
       setError('Failed to update groups');
@@ -194,14 +165,14 @@ const Dashboard = () => {
 
   const handleDelete = async () => {
     try {
-      await api.delete(`/api/notes/groups/${selectedGroup._id}`);
+      await groupsService.deleteGroup(selectedGroup._id);
       await updateGroups();
       setDeleteDialogOpen(false);
       setSuccess('Group deleted successfully');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      console.error('Delete error:', err.response || err);
-      setError(err.response?.data?.message || 'Failed to delete group');
+      console.error('Delete error:', err);
+      setError('Failed to delete group');
       setTimeout(() => setError(''), 3000);
     }
   };
@@ -212,33 +183,15 @@ const Dashboard = () => {
   };
 
   const handleAddMember = async () => {
-    try {
-      await api.post(`/api/notes/groups/${selectedGroup._id}/members`, {
-        email: newMemberEmail
-      });
-      await updateGroups();
-      setAddMemberDialogOpen(false);
-      setNewMemberEmail('');
-      setSuccess('Member added successfully');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Add member error:', err.response || err);
-      setError(err.response?.data?.message || 'Failed to add member');
-      setTimeout(() => setError(''), 3000);
-    }
+    setAddMemberDialogOpen(false);
+    setNewMemberEmail('');
+    setSuccess('Group members not supported yet');
+    setTimeout(() => setSuccess(''), 3000);
   };
 
-  const handleRemoveMember = async (groupId, memberId) => {
-    try {
-      await api.delete(`/api/notes/groups/${groupId}/members/${memberId}`);
-      await updateGroups();
-      setSuccess('Member removed successfully');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Remove member error:', err.response || err);
-      setError(err.response?.data?.message || 'Failed to remove member');
-      setTimeout(() => setError(''), 3000);
-    }
+  const handleRemoveMember = async () => {
+    setSuccess('Group members not supported yet');
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   const renderNoteCard = (note) => (

@@ -59,7 +59,15 @@ const Layout = ({ children }) => {
     setIsLoading(false);
   }, []);
 
+  const confirmIfUnsaved = () => {
+    if (window.__unsavedChanges) {
+      return window.confirm('You have unsaved changes. Are you sure? Any unsaved work will be lost.');
+    }
+    return true;
+  };
+
   const handleBack = React.useCallback(() => {
+    if (!confirmIfUnsaved()) return;
     if (location.pathname === '/') {
       return;
     }
@@ -89,6 +97,11 @@ const Layout = ({ children }) => {
     setMobileOpen(prev => !prev);
   }, []);
 
+  const safeNavigate = React.useCallback((path) => {
+    if (!confirmIfUnsaved()) return;
+    navigate(path);
+  }, [navigate]);
+
   const handleLogout = React.useCallback(async () => {
     try {
       setIsLoading(true);
@@ -104,6 +117,8 @@ const Layout = ({ children }) => {
 
   const isHomePage = location.pathname === '/';
 
+  const role = user?.profile?.role || 'user';
+
   const drawer = React.useMemo(() => (
     <div>
       <Toolbar>
@@ -113,32 +128,32 @@ const Layout = ({ children }) => {
       </Toolbar>
       <Divider />
       <List>
-        <ListItem button onClick={() => navigate('/')}>
+        <ListItem button onClick={() => safeNavigate('/') }>
           <ListItemIcon>
             <NotesIcon />
           </ListItemIcon>
           <ListItemText primary="My Notes" />
         </ListItem>
-        <ListItem button onClick={() => navigate('/notes/new')}>
+        <ListItem button onClick={() => safeNavigate('/notes/new')}>
           <ListItemIcon>
             <NoteAddIcon />
           </ListItemIcon>
           <ListItemText primary="New Note" />
         </ListItem>
-        <ListItem button onClick={() => navigate('/calendar')}>
+        <ListItem button onClick={() => safeNavigate('/calendar')}>
           <ListItemIcon>
             <CalendarIcon />
           </ListItemIcon>
           <ListItemText primary="Calendar" />
         </ListItem>
-        <ListItem button onClick={() => navigate('/passwords')}>
+        <ListItem button onClick={() => safeNavigate('/passwords')}>
           <ListItemIcon>
             <LockIcon />
           </ListItemIcon>
           <ListItemText primary="Password Manager" />
         </ListItem>
-        {user?.isAdmin && (
-          <ListItem button onClick={() => navigate('/admin')}>
+        {(role === 'admin' || role === 'developer') && (
+          <ListItem button onClick={() => safeNavigate('/admin')}>
             <ListItemIcon>
               <AdminIcon />
             </ListItemIcon>
@@ -147,7 +162,7 @@ const Layout = ({ children }) => {
         )}
       </List>
     </div>
-  ), [navigate, user?.isAdmin]);
+  ), [role, safeNavigate]);
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -178,11 +193,20 @@ const Layout = ({ children }) => {
           >
             <ArrowBackIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
             {isLoading ? (
               <CircularProgress size={24} color="inherit" />
             ) : (
-              `${user?.name}'s Notes`
+              <>
+                {`${user?.name}'s Notes`}
+                <span style={{
+                  border: '1px solid rgba(255,255,255,0.6)',
+                  borderRadius: 4,
+                  padding: '2px 6px',
+                  fontSize: 12,
+                  opacity: 0.8
+                }}>{role}</span>
+              </>
             )}
           </Typography>
           {error && (

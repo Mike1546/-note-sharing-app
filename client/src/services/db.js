@@ -1,5 +1,5 @@
 import { databases } from '../appwrite';
-import { Query } from 'appwrite';
+import { Query, Permission, Role } from 'appwrite';
 
 const DATABASE_ID = process.env.REACT_APP_APPWRITE_DATABASE_ID || 'YOUR_DATABASE_ID';
 const NOTES_COLLECTION_ID = process.env.REACT_APP_APPWRITE_COLLECTION_NOTES || 'YOUR_NOTES_COLLECTION_ID';
@@ -10,14 +10,35 @@ const NOTES_COLLECTION_ID = process.env.REACT_APP_APPWRITE_COLLECTION_NOTES || '
  * @param {object} note - { title, content, groupId?, pinned?, ... }
  */
 export async function createNote(userId, note) {
-  return databases.createDocument(
-    DATABASE_ID,
-    NOTES_COLLECTION_ID,
-    'unique()',
-    { ...note, ownerId: userId },
-    [`user:${userId}`],
-    [`user:${userId}`]
-  );
+  const permissions = [
+    Permission.read(Role.user(userId)),
+    Permission.update(Role.user(userId)),
+    Permission.delete(Role.user(userId)),
+    Permission.write(Role.user(userId)),
+  ];
+  try {
+    return await databases.createDocument(
+      DATABASE_ID,
+      NOTES_COLLECTION_ID,
+      'unique()',
+      { ...note, ownerId: userId },
+      permissions
+    );
+  } catch (err) {
+    const msg = err?.message || err?.response?.message || '';
+    const code = err?.code || err?.response?.code;
+    // If collection is using collection-level permissions, Appwrite rejects the permissions param
+    if (String(msg).toLowerCase().includes('permissions') || code === 400) {
+      // Retry without explicit document permissions
+      return databases.createDocument(
+        DATABASE_ID,
+        NOTES_COLLECTION_ID,
+        'unique()',
+        { ...note, ownerId: userId }
+      );
+    }
+    throw err;
+  }
 }
 
 /**
@@ -25,11 +46,22 @@ export async function createNote(userId, note) {
  * @param {string} userId
  */
 export async function listNotes(userId) {
-  return databases.listDocuments(
-    DATABASE_ID,
-    NOTES_COLLECTION_ID,
-    [Query.equal('ownerId', userId)]
-  );
+  try {
+    return await databases.listDocuments(
+      DATABASE_ID,
+      NOTES_COLLECTION_ID,
+      [Query.equal('ownerId', userId)]
+    );
+  } catch (err) {
+    // Fallback when the attribute isn't in schema yet
+    try {
+      const res = await databases.listDocuments(DATABASE_ID, NOTES_COLLECTION_ID);
+      res.documents = (res.documents || []).filter((d) => d.ownerId === userId);
+      return res;
+    } catch (e) {
+      throw err;
+    }
+  }
 }
 
 /**

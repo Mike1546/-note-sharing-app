@@ -10,23 +10,41 @@ const AppwriteDiagnostics = () => {
     setError(null);
     setResult(null);
     try {
-      const health = await fetch(`${process.env.REACT_APP_APPWRITE_ENDPOINT}/health`, {
+      // Use a project-scoped endpoint so CORS reflects the correct origin.
+      const resp = await fetch(`${process.env.REACT_APP_APPWRITE_ENDPOINT}/account`, {
         method: 'GET',
+        headers: {
+          'X-Appwrite-Project': process.env.REACT_APP_APPWRITE_PROJECT,
+        },
+        credentials: 'include',
       });
-      const healthData = await health.json();
-      
+
+      let body = null;
+      try {
+        body = await resp.json();
+      } catch (_) {
+        body = null;
+      }
+
+      const allowedOrigin = resp.headers.get('access-control-allow-origin');
+
       setResult({
         endpoint: process.env.REACT_APP_APPWRITE_ENDPOINT,
         project: process.env.REACT_APP_APPWRITE_PROJECT,
         database: process.env.REACT_APP_APPWRITE_DATABASE_ID,
         profiles: process.env.REACT_APP_APPWRITE_COLLECTION_PROFILES,
-        health: healthData,
         origin: window.location.origin,
         clientEndpoint: client.config.endpoint,
         clientProject: client.config.project,
+        request: {
+          url: `${process.env.REACT_APP_APPWRITE_ENDPOINT}/account`,
+          status: resp.status,
+          allowedOrigin,
+          body,
+        },
       });
     } catch (err) {
-      setError(err.message || 'Health check failed');
+      setError(err.message || 'Connectivity check failed');
     }
   };
 

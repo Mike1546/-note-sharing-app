@@ -25,7 +25,7 @@ import {
 } from '@mui/icons-material';
 import PasswordEntryForm from './PasswordEntryForm';
 import { useAuth } from '../../contexts/AuthContext';
-import api from '../../api/axios';
+import passwordsService from '../../services/passwords';
 
 const PasswordList = ({ entries, onUpdate }) => {
   const { user } = useAuth();
@@ -53,44 +53,43 @@ const PasswordList = ({ entries, onUpdate }) => {
   const handleDelete = async (entryId) => {
     try {
       console.log('Deleting password entry:', entryId);
-      const response = await api.delete(`/api/passwords/entries/${entryId}`);
-      
-      console.log('Delete response:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data
-      });
-
+      await passwordsService.deletePassword(entryId);
       onUpdate();
       setSuccess('Password entry deleted successfully');
     } catch (err) {
-      console.error('Delete error:', err.response || err);
-      setError(err.response?.data?.msg || err.response?.data?.message || 'Failed to delete password entry');
+      console.error('Delete error:', err);
+      setError(err?.message || 'Failed to delete password entry');
     }
   };
 
   const handleUpdate = async (updatedData) => {
-    try {
-      await api.put(`/api/passwords/entries/${selectedEntry._id}`, updatedData);
-      onUpdate();
-      setEditDialogOpen(false);
-      setSuccess('Password entry updated successfully');
-    } catch (err) {
-      setError('Failed to update password entry');
-    }
+    setError('Edit feature coming soon');
+    setEditDialogOpen(false);
   };
 
-  const togglePasswordVisibility = (entryId) => {
+  const togglePasswordVisibility = async (entryId, encryptedPassword) => {
     console.log('Toggle called for:', entryId);
-    console.log('Current showPassword state:', showPassword);
-    setShowPassword(prevState => {
-      const newState = {
+    const currentlyVisible = showPassword[entryId];
+    
+    if (currentlyVisible) {
+      // Hide password
+      setShowPassword(prevState => ({
         ...prevState,
-        [entryId]: !prevState[entryId]
-      };
-      console.log('New state will be:', newState);
-      return newState;
-    });
+        [entryId]: null
+      }));
+    } else {
+      // Decrypt and show password
+      try {
+        const decrypted = await passwordsService.getDecryptedPassword(encryptedPassword);
+        setShowPassword(prevState => ({
+          ...prevState,
+          [entryId]: decrypted
+        }));
+      } catch (err) {
+        console.error('Decryption error:', err);
+        setError('Failed to decrypt password');
+      }
+    }
   };
 
   const copyToClipboard = (text) => {
@@ -239,7 +238,7 @@ const PasswordList = ({ entries, onUpdate }) => {
                 p: 1
               }}
             >
-              {isVisible ? entry.password : '••••••••'}
+              {isVisible && showPassword[entry._id] ? showPassword[entry._id] : '••••••••'}
             </Typography>
           </Box>
 
@@ -310,7 +309,7 @@ const PasswordList = ({ entries, onUpdate }) => {
               size="small"
               onClick={() => {
                 console.log('Toggle clicked for:', entry._id);
-                togglePasswordVisibility(entry._id);
+                togglePasswordVisibility(entry._id, entry.encryptedPassword);
               }}
               color="primary"
               sx={{ 

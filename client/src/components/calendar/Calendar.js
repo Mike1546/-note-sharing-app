@@ -53,21 +53,13 @@ const Calendar = () => {
   });
 
   useEffect(() => {
-    getDayReminders(selectedDate);
+    // Reminders feature temporarily disabled - migration to Appwrite pending
+    setReminders([]);
   }, [selectedDate]);
 
   const getDayReminders = async (date) => {
-    try {
-      const formattedDate = date.format('YYYY-MM-DD');
-      const response = await api.get(`/api/reminders?date=${formattedDate}`);
-      const filteredReminders = response.data.filter(reminder => 
-        dayjs(reminder.date).format('YYYY-MM-DD') === formattedDate
-      );
-      setReminders(filteredReminders);
-    } catch (error) {
-      console.error('Error fetching reminders:', error);
-      setError('Failed to fetch reminders');
-    }
+    // Temporarily disabled
+    setReminders([]);
   };
 
   const handleDateChange = (newDate) => {
@@ -102,41 +94,15 @@ const Calendar = () => {
   };
 
   const handleDeleteReminder = async (reminderId) => {
-    try {
-      await api.delete(`/api/reminders/${reminderId}`);
-      await getDayReminders(selectedDate);
-      setSuccess('Reminder deleted successfully');
-    } catch (err) {
-      setError('Failed to delete reminder');
-    }
+    // Temporarily disabled
+    setError('Reminders feature coming soon');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const [hours, minutes] = formData.time.split(':');
-    const reminderDate = dayjs(formData.date)
-      .hour(parseInt(hours))
-      .minute(parseInt(minutes));
-
-    try {
-      const reminderData = {
-        ...formData,
-        date: reminderDate.toISOString()
-      };
-
-      if (editingReminder) {
-        await api.put(`/api/reminders/${editingReminder._id}`, reminderData);
-      } else {
-        await api.post('/api/reminders', reminderData);
-      }
-
-      await getDayReminders(selectedDate);
-      setDialogOpen(false);
-      setSuccess(editingReminder ? 'Reminder updated successfully' : 'Reminder created successfully');
-    } catch (error) {
-      console.error('Error creating reminder:', error);
-      setError('Failed to save reminder');
-    }
+    // Temporarily disabled
+    setError('Reminders feature coming soon');
+    setDialogOpen(false);
   };
 
   const handleChange = (e) => {

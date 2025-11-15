@@ -1,6 +1,8 @@
 import CryptoJS from 'crypto-js';
 import { databases } from '../appwrite';
+import { Query, ID } from 'appwrite';
 
+// Build timestamp: 2025-02-28 v7
 const DATABASE_ID = process.env.REACT_APP_APPWRITE_DATABASE_ID || 'YOUR_DATABASE_ID';
 const PASSWORDS_COLLECTION_ID = process.env.REACT_APP_APPWRITE_COLLECTION_PASSWORDS || 'YOUR_PASSWORDS_COLLECTION_ID';
 const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || 'LOCAL_DEVELOPMENT_KEY';
@@ -14,24 +16,34 @@ function decrypt(cipher) {
   return bytes.toString(CryptoJS.enc.Utf8);
 }
 
+// Create password without document-level permissions (using collection-level)
 export async function createPassword(userId, entry) {
   const payload = { ...entry, ownerId: userId };
   if (entry.password) {
-    payload.password_encrypted = encrypt(entry.password);
+    payload.encryptedPassword = encrypt(entry.password);
     delete payload.password;
   }
+  
   return databases.createDocument(
     DATABASE_ID,
     PASSWORDS_COLLECTION_ID,
-    'unique()',
-    payload,
-    [`user:${userId}`],
-    [`user:${userId}`]
+    ID.unique(),
+    payload
   );
 }
 
 export async function listPasswords(userId) {
-  return databases.listDocuments(DATABASE_ID, PASSWORDS_COLLECTION_ID, []);
+  try {
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      PASSWORDS_COLLECTION_ID,
+      [Query.equal('ownerId', userId)]
+    );
+    return response.documents || [];
+  } catch (err) {
+    console.warn('Failed to fetch passwords:', err);
+    return [];
+  }
 }
 
 export async function deletePassword(documentId) {

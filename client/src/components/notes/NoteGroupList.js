@@ -21,7 +21,7 @@ import {
   PersonAdd as PersonAddIcon,
   PersonRemove as PersonRemoveIcon
 } from '@mui/icons-material';
-import api from '../../api/axios';
+import groupsService from '../../services/groups';
 
 const NoteGroupList = ({ groups, onUpdate }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -38,14 +38,14 @@ const NoteGroupList = ({ groups, onUpdate }) => {
 
   const handleDelete = async () => {
     try {
-      await api.delete(`/api/notes/groups/${selectedGroup._id}`);
+      await groupsService.deleteGroup(selectedGroup._id);
       onUpdate();
       setDeleteDialogOpen(false);
       setSuccess('Group deleted successfully');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      console.error('Delete error:', err.response || err);
-      setError(err.response?.data?.message || 'Failed to delete group');
+      console.error('Delete error:', err);
+      setError('Failed to delete group');
       setTimeout(() => setError(''), 3000);
     }
   };
@@ -56,33 +56,15 @@ const NoteGroupList = ({ groups, onUpdate }) => {
   };
 
   const handleAddMember = async () => {
-    try {
-      await api.post(`/api/notes/groups/${selectedGroup._id}/members`, {
-        email: newMemberEmail
-      });
-      onUpdate();
-      setAddMemberDialogOpen(false);
-      setNewMemberEmail('');
-      setSuccess('Member added successfully');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Add member error:', err.response || err);
-      setError(err.response?.data?.message || 'Failed to add member');
-      setTimeout(() => setError(''), 3000);
-    }
+    setAddMemberDialogOpen(false);
+    setNewMemberEmail('');
+    setSuccess('Group members not supported yet');
+    setTimeout(() => setSuccess(''), 3000);
   };
 
-  const handleRemoveMember = async (groupId, memberId) => {
-    try {
-      await api.delete(`/api/notes/groups/${groupId}/members/${memberId}`);
-      onUpdate();
-      setSuccess('Member removed successfully');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Remove member error:', err.response || err);
-      setError(err.response?.data?.message || 'Failed to remove member');
-      setTimeout(() => setError(''), 3000);
-    }
+  const handleRemoveMember = async () => {
+    setSuccess('Group members not supported yet');
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   return (
@@ -116,7 +98,7 @@ const NoteGroupList = ({ groups, onUpdate }) => {
                         size="small"
                         color={member.role === 'admin' ? 'primary' : 'default'}
                         sx={{ mr: 0.5, mb: 0.5 }}
-                        onDelete={() => handleRemoveMember(group._id, member.user._id)}
+                        onDelete={() => handleRemoveMember()}
                         deleteIcon={<PersonRemoveIcon />}
                       />
                     ))}

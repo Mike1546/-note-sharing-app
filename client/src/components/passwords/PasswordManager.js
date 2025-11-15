@@ -16,6 +16,8 @@ import {
 } from '@mui/material';
 import { Add as AddIcon, FileUpload as FileUploadIcon, FileDownload as FileDownloadIcon } from '@mui/icons-material';
 import api from '../../api/axios';
+import passwordsService from '../../services/passwords';
+import { useAuth } from '../../contexts/AuthContext';
 import PasswordList from './PasswordList';
 import PasswordGroupList from './PasswordGroupList';
 import PasswordEntryForm from './PasswordEntryForm';
@@ -23,6 +25,7 @@ import PasswordGroupForm from './PasswordGroupForm';
 import PasswordManagerAccess from './PasswordManagerAccess';
 
 const PasswordManager = () => {
+  const { user } = useAuth();
   const [hasAccess, setHasAccess] = useState(false);
   const [requireSecondPassword, setRequireSecondPassword] = useState(false);
   const [showSetupDialog, setShowSetupDialog] = useState(false);
@@ -37,36 +40,23 @@ const PasswordManager = () => {
 
   // Load user's second password preference
   useEffect(() => {
-    const loadSecondPasswordSetting = async () => {
-      try {
-        const response = await api.get('/api/passwords/second-password/settings');
-        const { requireSecondPassword } = response.data;
-        setRequireSecondPassword(requireSecondPassword);
-        if (!requireSecondPassword) {
-          setHasAccess(true);
-        }
-      } catch (err) {
-        setError('Failed to load settings');
-      }
-    };
-
-    loadSecondPasswordSetting();
-  }, []); // Only run once on mount
+    // Skip second password for now - use Appwrite directly
+    setRequireSecondPassword(false);
+    setHasAccess(true);
+  }, []);
 
   const fetchData = useCallback(async () => {
-    if (!hasAccess) return;
+    if (!hasAccess || !user?.$id) return;
     
     try {
-      const [entriesRes, groupsRes] = await Promise.all([
-        api.get('/api/passwords/entries'),
-        api.get('/api/passwords/groups')
-      ]);
-      setEntries(entriesRes.data);
-      setGroups(groupsRes.data);
+      const entriesData = await passwordsService.listPasswords(user.$id);
+      setEntries(entriesData);
+      setGroups([]); // Groups temporarily disabled
     } catch (err) {
-      setError('Failed to fetch data');
+      console.error('Failed to fetch passwords:', err);
+      setError('Failed to fetch passwords');
     }
-  }, [hasAccess]);
+  }, [hasAccess, user]);
 
   useEffect(() => {
     fetchData();
@@ -115,24 +105,23 @@ const PasswordManager = () => {
 
   const handleEntrySubmit = async (entryData) => {
     try {
-      const response = await api.post('/api/passwords/entries', entryData);
-      setEntries([response.data, ...entries]);
+      if (!user?.$id) {
+        setError('Not authenticated');
+        return;
+      }
+      await passwordsService.createPassword(user.$id, entryData);
+      await fetchData();
       setEntryDialogOpen(false);
       setSuccess('Password entry created successfully');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create password entry');
+      console.error('Create password error:', err);
+      setError(err?.message || 'Failed to create password entry');
     }
   };
 
   const handleGroupSubmit = async (groupData) => {
-    try {
-      const response = await api.post('/api/passwords/groups', groupData);
-      setGroups([response.data, ...groups]);
-      setGroupDialogOpen(false);
-      setSuccess('Password group created successfully');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create password group');
-    }
+    setError('Password groups feature coming soon');
+    setGroupDialogOpen(false);
   };
 
   // Add export function

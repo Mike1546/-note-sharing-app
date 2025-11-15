@@ -5,8 +5,13 @@ const DATABASE_ID = process.env.REACT_APP_APPWRITE_DATABASE_ID || 'YOUR_DATABASE
 const GROUPS_COLLECTION_ID = process.env.REACT_APP_APPWRITE_COLLECTION_GROUPS || 'YOUR_GROUPS_COLLECTION_ID';
 
 export async function listGroups() {
-  const res = await databases.listDocuments(DATABASE_ID, GROUPS_COLLECTION_ID);
-  return res.documents || [];
+  try {
+    const res = await databases.listDocuments(DATABASE_ID, GROUPS_COLLECTION_ID);
+    return res.documents || [];
+  } catch (err) {
+    // If unauthorized or collection not readable, return empty instead of throwing
+    return [];
+  }
 }
 
 export async function deleteGroup(documentId) {

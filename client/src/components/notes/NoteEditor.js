@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -27,11 +27,15 @@ import {
   Add as AddIcon
 } from '@mui/icons-material';
 import api from '../../api/axios';
+import groupsService from '../../services/groups';
+import notesDb from '../../services/db';
+import { useAuth } from '../../contexts/AuthContext';
 
 const NoteEditor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const queryParams = new URLSearchParams(location.search);
   const groupIdFromUrl = queryParams.get('groupId');
 
@@ -54,6 +58,8 @@ const NoteEditor = () => {
   const [isNoteLocked, setIsNoteLocked] = useState(false);
   const [passcodeAttempts, setPasscodeAttempts] = useState(0);
   const [isSettingLockPasscode, setIsSettingLockPasscode] = useState(false);
+  const initialSnapshotRef = useRef(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     fetchGroups();
@@ -61,13 +67,23 @@ const NoteEditor = () => {
       fetchNote();
     } else {
       setLoading(false);
+      initialSnapshotRef.current = {
+        title: '',
+        content: '',
+        isLocked: false,
+        lockPasscode: '',
+        isEncrypted: false,
+        tags: [],
+        groupId: groupIdFromUrl || ''
+      };
     }
   }, [id]);
 
   const fetchGroups = async () => {
     try {
-      const response = await api.get('/api/notes/groups');
-      setGroups(response.data);
+      const gs = await groupsService.listGroups();
+      const mapped = (gs || []).map(g => ({ _id: g.$id, name: g.name || '', description: g.description || '' }));
+      setGroups(mapped);
     } catch (error) {
       console.error('Error fetching groups:', error);
       setError('Failed to fetch groups');
@@ -113,6 +129,16 @@ const NoteEditor = () => {
       if (response.data) {
         const noteData = response.data;
         setNote(noteData);
+        // Capture initial snapshot for unsaved-changes detection
+        initialSnapshotRef.current = {
+          title: noteData.title || '',
+          content: noteData.content || '',
+          isLocked: !!noteData.isLocked,
+          lockPasscode: noteData.lockPasscode || '',
+          isEncrypted: !!noteData.isEncrypted,
+          tags: Array.isArray(noteData.tags) ? noteData.tags : [],
+          groupId: noteData.groupId || ''
+        };
         if (noteData.isLocked) {
           setOriginalContent(noteData.content);
         }
@@ -158,6 +184,39 @@ const NoteEditor = () => {
       }));
     }
   };
+
+  // Track unsaved changes (dirty state)
+  useEffect(() => {
+    const base = initialSnapshotRef.current;
+    if (!base) {
+      setIsDirty(false);
+      return;
+    }
+    const current = {
+      title: note.title || '',
+      content: note.content || '',
+      isLocked: !!note.isLocked,
+      lockPasscode: note.lockPasscode || '',
+      isEncrypted: !!note.isEncrypted,
+      tags: Array.isArray(note.tags) ? note.tags : [],
+      groupId: note.groupId || ''
+    };
+    const dirty = JSON.stringify(base) !== JSON.stringify(current);
+    setIsDirty(dirty);
+    // expose globally so Layout can guard navigation
+    window.__unsavedChanges = dirty;
+  }, [note]);
+
+  // Warn on browser refresh/close when dirty
+  useEffect(() => {
+    const beforeUnload = (e) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [isDirty]);
 
   const handleToggleLock = () => {
     if (!note.isLocked) {
@@ -232,16 +291,26 @@ const NoteEditor = () => {
         groupId: note.groupId || null
       };
 
+      if (!user?.$id) throw new Error('Not authenticated');
+
       if (id && id !== 'new') {
-        await api.put(`/api/notes/${id}`, noteData);
+        await notesDb.updateNote(id, user.$id, noteData);
       } else {
-        await api.post('/api/notes', noteData);
+        await notesDb.createNote(user.$id, noteData);
       }
       navigate('/');
     } catch (error) {
       console.error('Error saving note:', error);
-      setError(error.response?.data?.message || 'Error saving note');
+      setError(error?.message || error?.response?.data?.message || 'Error saving note');
     }
+  };
+
+  const handleCancel = () => {
+    if (isDirty) {
+      const ok = window.confirm('You have unsaved changes. Are you sure? Any unsaved work will be lost.');
+      if (!ok) return;
+    }
+    navigate('/');
   };
 
   if (loading) {
@@ -348,7 +417,7 @@ const NoteEditor = () => {
       >
         Save
       </Button>
-      <Button variant="outlined" onClick={() => navigate('/')}>
+      <Button variant="outlined" onClick={handleCancel}> 
         Cancel
       </Button>
 
