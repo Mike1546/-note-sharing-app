@@ -37,7 +37,19 @@ const AppContent = () => {
     <MuiThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <Router>
+        <Router basename={(function(){
+          const raw = process.env.PUBLIC_URL || '/';
+          // If PUBLIC_URL is an absolute URL, extract just the pathname for basename
+          try {
+            const url = new URL(raw, window.location.origin);
+            let path = url.pathname || '/';
+            if (path.endsWith('/') && path !== '/') path = path.slice(0, -1);
+            return path || '/';
+          } catch (e) {
+            // Fallback: assume raw is already a pathname
+            return raw;
+          }
+        })()}>
           <ErrorBoundary>
             <Routes>
               <Route path="/login" element={<Login />} />

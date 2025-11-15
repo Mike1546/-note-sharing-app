@@ -129,3 +129,42 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ### Configuration
 - Adjust `wrangler.toml` as needed for your project.
 - Set environment variables in the Cloudflare dashboard or via `wrangler.toml`. 
+
+## GitHub Pages Deployment (Frontend)
+
+- Build: `cd client && npm install && npm run build`
+- Publish: `npx gh-pages -d build`
+
+Live URL: `https://mike1546.github.io/-note-sharing-app/`
+
+## Appwrite Setup
+
+Set these variables for local scripts/builds as applicable:
+- `APPWRITE_ENDPOINT`
+- `APPWRITE_PROJECT_ID`
+- `APPWRITE_API_KEY` (server-side scripts only)
+- `APPWRITE_DATABASE_ID`
+- `APPWRITE_PROFILES_COLLECTION_ID`
+
+Client build-time equivalents: `REACT_APP_APPWRITE_*`.
+
+### Bootstrap a Developer User
+
+Use the server-side script to create/promote a developer account:
+
+```
+APPWRITE_ENDPOINT=... \
+APPWRITE_PROJECT_ID=... \
+APPWRITE_API_KEY=... \
+APPWRITE_DATABASE_ID=... \
+APPWRITE_PROFILES_COLLECTION_ID=... \
+node scripts/bootstrapDeveloper.js you@example.com "Your Name" "Password123!"
+```
+
+The script will create the user if needed, ensure a profile, and set `role` to `developer`.
+
+### CORS (Appwrite)
+
+Add these origins in Appwrite CORS:
+- `https://mike1546.github.io`
+- `https://mike1546.github.io/-note-sharing-app`

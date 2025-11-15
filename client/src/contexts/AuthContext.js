@@ -46,7 +46,13 @@ export const AuthProvider = ({ children }) => {
     try {
       await account.createSession(email, password);
       const current = await account.get();
-      setUser(current);
+      // load profile for role checks
+      try {
+        const profile = await profilesService.getProfileByUserId(current.$id);
+        setUser({ ...current, profile });
+      } catch (e) {
+        setUser(current);
+      }
       setError(null);
       return true;
     } catch (err) {
@@ -58,7 +64,8 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (name, email, password) => {
     try {
-      await account.create('unique()', email, password, name ? { name } : undefined);
+      // Appwrite Account.create expects name as a string (4th arg), not an object
+      await account.create('unique()', email, password, name || undefined);
       await account.createSession(email, password);
       const current = await account.get();
         // Create profile document for role management
