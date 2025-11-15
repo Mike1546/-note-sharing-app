@@ -10,6 +10,7 @@
     "build": "echo 'Starting build process...' && cd client && npm install && echo 'Building frontend...' && npm run build && cd .. && echo 'Installing backend dependencies...' && npm install && echo 'Creating build directory...' && mkdir -p build && echo 'Copying build files...' && cp -r client/build/* build/ && echo 'Build complete!' && ls -la build/"
   },
   "dependencies": {
+    "appwrite": "^21.4.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.0",
