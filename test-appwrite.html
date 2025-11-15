@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appwrite CORS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-box {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            border-left-color: #f44336;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .success { color: #4CAF50; }
+        .error-text { color: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>Appwrite Connection Test</h1>
+    
+    <div class="test-box">
+        <h3>Configuration</h3>
+        <pre id="config"></pre>
+    </div>
+
+    <div>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <button onclick="testAccount()">Test Account (with CORS)</button>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@16.0.2"></script>
+    <script>
+        const ENDPOINT = 'https://nyc.cloud.appwrite.io/v1';
+        const PROJECT = 'nyc-691815b8003ae6a0e161';
+        
+        // Display config
+        document.getElementById('config').textContent = JSON.stringify({
+            endpoint: ENDPOINT,
+            project: PROJECT,
+            origin: window.location.origin,
+            url: window.location.href
+        }, null, 2);
+
+        const { Client, Account } = Appwrite;
+        const client = new Client()
+            .setEndpoint(ENDPOINT)
+            .setProject(PROJECT);
+        
+        const account = new Account(client);
+
+        function addResult(title, data, isError = false) {
+            const div = document.createElement('div');
+            div.className = 'test-box' + (isError ? ' error' : '');
+            div.innerHTML = `
+                <h3 class="${isError ? 'error-text' : 'success'}">${title}</h3>
+                <pre>${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}</pre>
+            `;
+            document.getElementById('results').appendChild(div);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testHealth() {
+            try {
+                const response = await fetch(ENDPOINT + '/health', {
+                    method: 'GET',
+                    headers: {
+                        'X-Appwrite-Project': PROJECT
+                    }
+                });
+                const data = await response.json();
+                addResult('✓ Health Check Success', data);
+            } catch (error) {
+                addResult('✗ Health Check Failed', error.message, true);
+            }
+        }
+
+        async function testAccount() {
+            try {
+                const session = await account.get();
+                addResult('✓ Account Get Success', session);
+            } catch (error) {
+                addResult('✗ Account Get Failed (Expected if not logged in)', {
+                    message: error.message,
+                    type: error.type,
+                    code: error.code,
+                    response: error.response
+                }, true);
+            }
+        }
+
+        async function testLogin() {
+            const email = prompt('Enter email:', 'mansurmusa@gmail.com');
+            const password = prompt('Enter password:');
+            
+            if (!email || !password) {
+                addResult('✗ Login Cancelled', 'No credentials provided', true);
+                return;
+            }
+
+            try {
+                console.log('Attempting login with:', { email, endpoint: ENDPOINT, project: PROJECT });
+                const session = await account.createEmailPasswordSession(email, password);
+                addResult('✓ Login Success!', session);
+                
+                // Try to get account info
+                const user = await account.get();
+                addResult('✓ Account Info Retrieved', user);
+            } catch (error) {
+                console.error('Login error:', error);
+                addResult('✗ Login Failed', {
+                    message: error.message,
+                    type: error.type,
+                    code: error.code,
+                    response: error.response
+                }, true);
+            }
+        }
+    </script>
+</body>
+</html>
