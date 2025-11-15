@@ -12,23 +12,6 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Note Sharing App</title>
-    <script>
-      // GitHub Pages SPA redirect handler: if 404.html redirected here with ?p=encodedPath,
-      // restore the original route using history.replaceState before the app loads.
-      (function() {
-        try {
-          var params = new URLSearchParams(window.location.search);
-          var p = params.get('p');
-          if (p) {
-            var repo = '/-note-sharing-app';
-            var target = repo + decodeURIComponent(p);
-            window.history.replaceState(null, '', target);
-          }
-        } catch (e) {
-          // no-op
-        }
-      })();
-    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

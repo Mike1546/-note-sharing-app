@@ -6,16 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Redirecting…</title>
     <script>
-      // GitHub Pages SPA redirect: capture the current path and redirect to
-      // the app's index with the path encoded as a query param.
+      // For GitHub Pages project sites, send unknown paths to the project root.
       (function() {
         var l = window.location;
         var repo = '/-note-sharing-app';
-        var path = l.pathname;
-        // strip repo prefix if present to avoid duplicating
-        if (path.indexOf(repo) === 0) path = path.slice(repo.length);
-        var newUrl = l.protocol + '//' + l.host + repo + '/?p=' + encodeURIComponent(path + l.search + l.hash);
-        l.replace(newUrl);
+        l.replace(l.protocol + '//' + l.host + repo + '/');
       })();
     </script>
   </head>

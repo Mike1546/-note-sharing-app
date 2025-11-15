@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/-note-sharing-app/static/css/main.e6c13ad2.css",
+    "main.js": "/-note-sharing-app/static/js/main.aa7b86cb.js",
+    "index.html": "/-note-sharing-app/index.html",
+    "main.e6c13ad2.css.map": "/-note-sharing-app/static/css/main.e6c13ad2.css.map",
+    "main.aa7b86cb.js.map": "/-note-sharing-app/static/js/main.aa7b86cb.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.e6c13ad2.css",
+    "static/js/main.aa7b86cb.js"
+  ]
+}
