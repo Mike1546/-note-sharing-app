@@ -44,7 +44,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      await account.createSession(email, password);
+      // Appwrite v13+: use email/password session API
+      await account.createEmailPasswordSession(email, password);
       const current = await account.get();
       // load profile for role checks
       try {
@@ -66,7 +67,8 @@ export const AuthProvider = ({ children }) => {
     try {
       // Appwrite Account.create expects name as a string (4th arg), not an object
       await account.create('unique()', email, password, name || undefined);
-      await account.createSession(email, password);
+      // Immediately sign in the user
+      await account.createEmailPasswordSession(email, password);
       const current = await account.get();
         // Create profile document for role management
         try {
