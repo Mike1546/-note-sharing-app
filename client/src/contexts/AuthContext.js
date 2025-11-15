@@ -44,6 +44,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      console.log('Attempting Appwrite login with endpoint:', process.env.REACT_APP_APPWRITE_ENDPOINT, 'project:', process.env.REACT_APP_APPWRITE_PROJECT);
       // Appwrite v13+: use email/password session API
       await account.createEmailPasswordSession(email, password);
       const current = await account.get();
@@ -57,14 +58,17 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       return true;
     } catch (err) {
-      console.error('Appwrite login error:', err);
-      setError(err.message || 'Login failed');
+      console.error('Appwrite login error (full):', err);
+      console.error('Error type:', err?.type, 'Code:', err?.code, 'Message:', err?.message);
+      const msg = err?.message || err?.response?.message || 'Login failed - check console';
+      setError(msg);
       return false;
     }
   };
 
   const register = async (name, email, password) => {
     try {
+      console.log('Attempting Appwrite registration with endpoint:', process.env.REACT_APP_APPWRITE_ENDPOINT, 'project:', process.env.REACT_APP_APPWRITE_PROJECT);
       // Appwrite Account.create expects name as a string (4th arg), not an object
       await account.create('unique()', email, password, name || undefined);
       // Immediately sign in the user
@@ -82,8 +86,10 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       return true;
     } catch (err) {
-      console.error('Appwrite register error:', err);
-      setError(err.message || 'Registration failed');
+      console.error('Appwrite register error (full):', err);
+      console.error('Error type:', err?.type, 'Code:', err?.code, 'Message:', err?.message);
+      const msg = err?.message || err?.response?.message || 'Registration failed - check console';
+      setError(msg);
       return false;
     }
   };

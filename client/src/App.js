@@ -17,6 +17,7 @@ import RequireRole from './components/RequireRole';
 import PasswordManager from './components/passwords/PasswordManager';
 import Calendar from './components/calendar/Calendar';
 import AppwriteTest from './components/AppwriteTest';
+import AppwriteDiagnostics from './components/AppwriteDiagnostics';
 
 const AppContent = () => {
   const { darkMode } = useTheme();
@@ -84,6 +85,7 @@ const AppContent = () => {
                 }
               />
               <Route path="/appwrite-test" element={<AppwriteTest />} />
+              <Route path="/diagnostics" element={<AppwriteDiagnostics />} />
             </Routes>
           </ErrorBoundary>
         </Router>
