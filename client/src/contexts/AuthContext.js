@@ -1,8 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api from '../api/axios';
-
-let lastAuthCheck = 0;
-const AUTH_CHECK_INTERVAL = 300000; // 5 minutes
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { account } from '../appwrite';
+import profilesService from '../services/profiles';
 
 const AuthContext = createContext(null);
 
@@ -19,104 +17,95 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadUser = useCallback(async () => {
+  const loadUser = async () => {
+    setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      // Check token expiration before making the request
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        const expiry = payload.exp * 1000; // Convert to milliseconds
-        if (expiry < Date.now()) {
-          localStorage.removeItem('token');
-          setUser(null);
-          setLoading(false);
-          return;
+      const current = await account.get();
+        // Try to load profile (role) from profiles collection
+        let profile = null;
+        try {
+          profile = await profilesService.getProfileByUserId(current.$id);
+        } catch (e) {
+          console.warn('No profile found for user', e);
         }
-      } catch (err) {
-        console.error('Error checking token:', err);
-        localStorage.removeItem('token');
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      const now = Date.now();
-      if (now - lastAuthCheck < AUTH_CHECK_INTERVAL && user) {
-        setLoading(false);
-        return;
-      }
-
-      lastAuthCheck = now;
-      const res = await api.get('/api/auth/me');
-      setUser(res.data);
+        setUser({ ...current, profile });
       setError(null);
     } catch (err) {
-      console.error('Auth check error:', err);
-      if (err.response?.status === 401) {
-        localStorage.removeItem('token');
-        setUser(null);
-      }
-      setError(err.response?.data?.message || 'Error loading user');
+      // Not logged in or session expired
+      setUser(null);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  };
 
   useEffect(() => {
     loadUser();
-    // Set up periodic check for token validity with increased interval
-    const interval = setInterval(loadUser, AUTH_CHECK_INTERVAL);
-    return () => clearInterval(interval);
-  }, [loadUser]);
+  }, []);
 
   const login = async (email, password) => {
     try {
-      const res = await api.post('/api/auth/login', { email, password });
-      localStorage.setItem('token', res.data.token);
-      setUser(res.data.user);
+      await account.createSession(email, password);
+      const current = await account.get();
+      setUser(current);
       setError(null);
-      lastAuthCheck = Date.now();
       return true;
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      console.error('Appwrite login error:', err);
+      setError(err.message || 'Login failed');
       return false;
     }
   };
 
   const register = async (name, email, password) => {
     try {
-      const res = await api.post('/api/auth/register', { name, email, password });
-      localStorage.setItem('token', res.data.token);
-      setUser(res.data.user);
+      await account.create('unique()', email, password, name ? { name } : undefined);
+      await account.createSession(email, password);
+      const current = await account.get();
+        // Create profile document for role management
+        try {
+          await profilesService.createProfile(current.$id, name || '', current.email || '');
+          const profile = await profilesService.getProfileByUserId(current.$id);
+          setUser({ ...current, profile });
+        } catch (e) {
+          console.warn('Failed to create profile document:', e);
+          setUser(current);
+        }
       setError(null);
-      lastAuthCheck = Date.now();
       return true;
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      console.error('Appwrite register error:', err);
+      setError(err.message || 'Registration failed');
       return false;
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = async () => {
+    try {
+      await account.deleteSession('current');
+    } catch (err) {
+      console.warn('Error deleting Appwrite session:', err);
+    }
     setUser(null);
-    lastAuthCheck = 0;
   };
 
   const updateProfile = async (data) => {
     try {
-      const res = await api.put('/api/auth/profile', data);
-      setUser(res.data.user);
+      if (data.name) {
+        await account.updateName(data.name);
+      }
+      if (data.email) {
+        await account.updateEmail(data.email, data.password || '');
+      }
+      if (data.password) {
+        await account.updatePassword(data.password, data.oldPassword || '');
+      }
+      const current = await account.get();
+      setUser(current);
       setError(null);
       return true;
     } catch (err) {
-      setError(err.response?.data?.message || 'Profile update failed');
+      console.error('Appwrite updateProfile error:', err);
+      setError(err.message || 'Profile update failed');
       return false;
     }
   };
@@ -133,4 +122,4 @@ export const AuthProvider = ({ children }) => {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}; 
+};

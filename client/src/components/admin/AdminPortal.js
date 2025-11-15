@@ -38,7 +38,10 @@ import {
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
-import api from '../../api/axios';
+import profilesService from '../../services/profiles';
+import passwordsService from '../../services/passwords';
+import groupsService from '../../services/groups';
+import logsService from '../../services/logs';
 
 const AdminPortal = () => {
   const { user } = useAuth();
@@ -52,6 +55,7 @@ const AdminPortal = () => {
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState({});
+  const [decryptedPasswords, setDecryptedPasswords] = useState({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('');
   const [editUserData, setEditUserData] = useState({
@@ -92,8 +96,14 @@ const AdminPortal = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await api.get('/api/admin/users');
-      setUsers(response.data);
+      const docs = await profilesService.listProfiles();
+      const mapped = docs.map(doc => ({
+        _id: doc.$id,
+        name: doc.name || '',
+        email: doc.email || '',
+        role: doc.role || 'user'
+      }));
+      setUsers(mapped);
     } catch (error) {
       showSnackbar('Error fetching users', 'error');
     }
@@ -101,8 +111,17 @@ const AdminPortal = () => {
 
   const fetchPasswordEntries = async () => {
     try {
-      const response = await api.get('/api/admin/passwords');
-      setPasswordEntries(response.data);
+      const res = await passwordsService.listPasswords();
+      const mapped = (res.documents || res).map(d => ({
+        _id: d.$id || d._id,
+        title: d.title,
+        username: d.username,
+        password_encrypted: d.password_encrypted,
+        owner: d.owner || d.ownerId || null,
+        group: d.group || null,
+        ...d
+      }));
+      setPasswordEntries(mapped);
     } catch (error) {
       showSnackbar('Error fetching password entries', 'error');
     }
@@ -110,8 +129,14 @@ const AdminPortal = () => {
 
   const fetchGroups = async () => {
     try {
-      const response = await api.get('/api/admin/groups');
-      setGroups(response.data);
+      const res = await groupsService.listGroups();
+      const mapped = (res.documents || res).map(d => ({
+        _id: d.$id || d._id,
+        name: d.name,
+        owner: d.owner || null,
+        members: d.members || []
+      }));
+      setGroups(mapped);
     } catch (error) {
       showSnackbar('Error fetching groups', 'error');
     }
@@ -119,8 +144,16 @@ const AdminPortal = () => {
 
   const fetchLoginLogs = async () => {
     try {
-      const response = await api.get('/api/admin/logs');
-      setLoginLogs(response.data);
+      const res = await logsService.listLogs();
+      const mapped = (res.documents || res).map(d => ({
+        _id: d.$id || d._id,
+        userName: d.userName,
+        userEmail: d.userEmail,
+        timestamp: d.timestamp,
+        ipAddress: d.ipAddress,
+        success: d.success
+      }));
+      setLoginLogs(mapped);
     } catch (error) {
       showSnackbar('Error fetching login logs', 'error');
     }
@@ -131,7 +164,7 @@ const AdminPortal = () => {
     setEditUserData({
       name: user.name,
       email: user.email,
-      isAdmin: user.isAdmin
+      isAdmin: user.role === 'admin'
     });
     setDialogType('editUser');
     setDialogOpen(true);
@@ -139,8 +172,11 @@ const AdminPortal = () => {
 
   const handleUpdateUser = async () => {
     try {
-      const response = await api.put(`/api/admin/users/${selectedUser._id}`, editUserData);
-      setSuccess('User updated successfully');
+      if (selectedUser._id) {
+        const newRole = editUserData.isAdmin ? 'admin' : 'user';
+        await profilesService.updateProfileRole(selectedUser._id, newRole);
+        setSuccess('User role updated successfully');
+      }
       setDialogOpen(false);
       fetchUsers();
     } catch (err) {
@@ -154,11 +190,9 @@ const AdminPortal = () => {
     }
 
     try {
-      await api.delete(`/api/admin/users/${userId}`);
-      setSuccess('User deleted successfully');
-      fetchUsers();
+      showSnackbar('To delete a user, use the Appwrite console or run a server-side admin script.', 'info');
     } catch (err) {
-      setError('Failed to delete user');
+      setError('Failed to initiate delete');
     }
   };
 
@@ -168,12 +202,9 @@ const AdminPortal = () => {
         setError('Password must be at least 6 characters long');
         return;
       }
-
-      await api.put(`/api/admin/users/${selectedUser._id}/password`, {
-        newPassword
-      });
-      
-      showSnackbar(`Password changed successfully for ${selectedUser.name}`, 'success');
+      // Changing a user's account password requires server-side privileges.
+      // Use the Appwrite console or a server-side script with an API key to reset a user's password.
+      showSnackbar('Password changes must be performed via Appwrite Console or server-side script.', 'info');
       setDialogOpen(false);
       setNewPassword('');
       setDialogType('');
@@ -194,7 +225,7 @@ const AdminPortal = () => {
     }
 
     try {
-      await api.delete(`/api/admin/passwords/${entryId}`);
+      await passwordsService.deletePassword(entryId);
       setSuccess('Password entry deleted successfully');
       fetchPasswordEntries();
     } catch (err) {
@@ -208,7 +239,7 @@ const AdminPortal = () => {
     }
 
     try {
-      await api.delete(`/api/admin/groups/${groupId}`);
+      await groupsService.deleteGroup(groupId);
       setSuccess('Group deleted successfully');
       fetchGroups();
     } catch (err) {
@@ -236,7 +267,8 @@ const AdminPortal = () => {
     window.history.back();
   };
 
-  if (!user?.isAdmin) {
+  const role = user?.profile?.role || 'user';
+  if (role !== 'admin' && role !== 'developer') {
     return (
       <Container>
         <Typography variant="h4" sx={{ mt: 4, mb: 2 }}>
@@ -361,8 +393,8 @@ const AdminPortal = () => {
                         <TableCell sx={{ minWidth: 180 }}>{user.email}</TableCell>
                         <TableCell sx={{ minWidth: 100 }}>
                           <Chip 
-                            label={user.isAdmin ? 'Admin' : 'User'}
-                            color={user.isAdmin ? 'primary' : 'default'}
+                            label={user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User'}
+                            color={user.role === 'developer' ? 'secondary' : (user.role === 'admin' ? 'primary' : 'default')}
                             size="small"
                             sx={{ fontSize: '0.75rem', height: '24px' }}
                           />
@@ -419,14 +451,25 @@ const AdminPortal = () => {
                         <TableCell sx={{ minWidth: 150 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography sx={{ fontFamily: 'monospace' }}>
-                              {showPassword[entry._id] ? entry.password : '••••••••'}
+                              {showPassword[entry._id] ? (decryptedPasswords[entry._id] || 'Decrypting...') : '••••••••'}
                             </Typography>
                             <IconButton
                               size="small"
-                              onClick={() => setShowPassword(prev => ({
-                                ...prev,
-                                [entry._id]: !prev[entry._id]
-                              }))}
+                              onClick={async () => {
+                                const currently = !!showPassword[entry._id];
+                                if (!currently) {
+                                  // showing now: decrypt first if needed
+                                  if (!decryptedPasswords[entry._id] && entry.password_encrypted) {
+                                    try {
+                                      const plain = await passwordsService.getDecryptedPassword(entry.password_encrypted);
+                                      setDecryptedPasswords(prev => ({ ...prev, [entry._id]: plain }));
+                                    } catch (e) {
+                                      setDecryptedPasswords(prev => ({ ...prev, [entry._id]: 'Error' }));
+                                    }
+                                  }
+                                }
+                                setShowPassword(prev => ({ ...prev, [entry._id]: !prev[entry._id] }));
+                              }}
                             >
                               {showPassword[entry._id] ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                             </IconButton>

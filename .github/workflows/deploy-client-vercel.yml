@@ -1,0 +1,45 @@
+name: Deploy Client to Vercel
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy-vercel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build client (uses secrets for build-time envs)
+        working-directory: client
+        env:
+          REACT_APP_APPWRITE_ENDPOINT: ${{ secrets.REACT_APP_APPWRITE_ENDPOINT }}
+          REACT_APP_APPWRITE_PROJECT: ${{ secrets.REACT_APP_APPWRITE_PROJECT }}
+          REACT_APP_APPWRITE_DATABASE_ID: ${{ secrets.REACT_APP_APPWRITE_DATABASE_ID }}
+          REACT_APP_APPWRITE_COLLECTION_PROFILES: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_PROFILES }}
+          REACT_APP_APPWRITE_COLLECTION_PASSWORDS: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_PASSWORDS }}
+          REACT_APP_APPWRITE_COLLECTION_NOTES: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_NOTES }}
+          REACT_APP_APPWRITE_COLLECTION_GROUPS: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_GROUPS }}
+          REACT_APP_APPWRITE_COLLECTION_LOGS: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_LOGS }}
+          REACT_APP_ENCRYPTION_KEY: ${{ secrets.REACT_APP_ENCRYPTION_KEY }}
+        run: npm run build
+
+      - name: Deploy to Vercel (uses VERCEL_TOKEN secret)
+        working-directory: client
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          # Install vercel CLI and deploy the built output to your Vercel project.
+          npm i -g vercel
+          # Deploy the already-built static files; use --prod to deploy to production and --confirm to skip prompts
+          vercel --prod --confirm --token "$VERCEL_TOKEN" ./build

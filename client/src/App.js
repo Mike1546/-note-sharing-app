@@ -13,8 +13,10 @@ import Dashboard from './components/Dashboard';
 import NoteEditor from './components/notes/NoteEditor';
 import Layout from './components/layout/Layout';
 import AdminPortal from './components/admin/AdminPortal';
+import RequireRole from './components/RequireRole';
 import PasswordManager from './components/passwords/PasswordManager';
 import Calendar from './components/calendar/Calendar';
+import AppwriteTest from './components/AppwriteTest';
 
 const AppContent = () => {
   const { darkMode } = useTheme();
@@ -40,7 +42,7 @@ const AppContent = () => {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/admin" element={<AdminPortal />} />
+              <Route path="/admin" element={<RequireRole roles={["admin","developer"]}><AdminPortal /></RequireRole>} />
               <Route
                 path="/"
                 element={
@@ -81,6 +83,7 @@ const AppContent = () => {
                   </PrivateRoute>
                 }
               />
+              <Route path="/appwrite-test" element={<AppwriteTest />} />
             </Routes>
           </ErrorBoundary>
         </Router>

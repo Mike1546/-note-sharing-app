@@ -1,0 +1,42 @@
+name: Deploy Client to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build client
+        working-directory: client
+        env:
+          REACT_APP_APPWRITE_ENDPOINT: ${{ secrets.REACT_APP_APPWRITE_ENDPOINT }}
+          REACT_APP_APPWRITE_PROJECT: ${{ secrets.REACT_APP_APPWRITE_PROJECT }}
+          REACT_APP_APPWRITE_DATABASE_ID: ${{ secrets.REACT_APP_APPWRITE_DATABASE_ID }}
+          REACT_APP_APPWRITE_COLLECTION_PROFILES: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_PROFILES }}
+          REACT_APP_APPWRITE_COLLECTION_PASSWORDS: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_PASSWORDS }}
+          REACT_APP_APPWRITE_COLLECTION_NOTES: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_NOTES }}
+          REACT_APP_APPWRITE_COLLECTION_GROUPS: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_GROUPS }}
+          REACT_APP_APPWRITE_COLLECTION_LOGS: ${{ secrets.REACT_APP_APPWRITE_COLLECTION_LOGS }}
+          REACT_APP_ENCRYPTION_KEY: ${{ secrets.REACT_APP_ENCRYPTION_KEY }}
+        run: npm run build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./client/build
+          publish_branch: gh-pages
