@@ -1,17 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Secure Note-Sharing Application" />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>Note Sharing App</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Redirecting…</title>
+    <script>
+      // GitHub Pages SPA redirect: capture the current path and redirect to
+      // the app's index with the path encoded as a query param.
+      (function() {
+        var l = window.location;
+        var repo = '/-note-sharing-app';
+        var path = l.pathname;
+        // strip repo prefix if present to avoid duplicating
+        if (path.indexOf(repo) === 0) path = path.slice(repo.length);
+        var newUrl = l.protocol + '//' + l.host + repo + '/?p=' + encodeURIComponent(path + l.search + l.hash);
+        l.replace(newUrl);
+      })();
+    </script>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    Redirecting…
   </body>
-</html>
+  </html>
