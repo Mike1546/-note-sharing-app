@@ -18,6 +18,7 @@ function decrypt(cipher) {
 
 // Create password without document-level permissions (using collection-level)
 export async function createPassword(userId, entry) {
+  console.log('[Password Manager] Creating password entry');
   const payload = { ...entry, ownerId: userId };
   if (entry.password) {
     payload.encryptedPassword = encrypt(entry.password);
