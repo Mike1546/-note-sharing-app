@@ -1,17 +1,16 @@
 import { databases } from '../appwrite';
-import { Query } from 'appwrite';
+import { Query, ID } from 'appwrite';
 
 const DATABASE_ID = process.env.REACT_APP_APPWRITE_DATABASE_ID || 'YOUR_DATABASE_ID';
 const PROFILES_COLLECTION_ID = process.env.REACT_APP_APPWRITE_COLLECTION_PROFILES || 'YOUR_PROFILES_COLLECTION_ID';
 
 export async function createProfile(userId, name, email, role = 'user') {
+  // Collection-level permissions handle access control
   return databases.createDocument(
     DATABASE_ID,
     PROFILES_COLLECTION_ID,
-    'unique()',
-    { userId, name, email, role },
-    ['user:' + userId], // read perms: owner
-    ['user:' + userId]  // write perms: owner
+    ID.unique(),
+    { userId, name, email, role }
   );
 }
 
